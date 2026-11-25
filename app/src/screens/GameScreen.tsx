@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import { MIN_PLAYERS, type QuestionResult, type RoomState } from '../protocol';
@@ -7,14 +6,8 @@ import { Button, C, Card } from '../ui';
 /** 투표 중 화면 + 결과 공개 화면 */
 export function GameScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
   const me = state.players.find((p) => p.id === game.playerId);
-  const [myChoice, setMyChoice] = useState<boolean | null>(null);
-
-  // 질문이 바뀌면 내 선택 표시를 초기화
-  useEffect(() => setMyChoice(null), [state.questionIndex, state.phase === 'voting']);
-
-  const vote = async (yes: boolean) => {
-    if (await game.vote(yes)) setMyChoice(yes);
-  };
+  // 내가 무엇을 골랐는지는 화면에 남기지 않는다 (옆 사람이 폰 화면을 볼 수 있으므로)
+  const vote = (yes: boolean) => void game.vote(yes);
 
   const progress = `${state.questionIndex + 1} / ${state.questionCount}`;
   const isLast = state.questionIndex + 1 >= state.questionCount;
@@ -30,10 +23,8 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
         <>
           {me?.hasVoted ? (
             <Card style={{ alignItems: 'center' }}>
-              <Text style={s.voted}>
-                {myChoice === null ? '투표 완료' : `“${myChoice ? '예' : '아니오'}”로 투표했어요`}
-              </Text>
-              <Text style={s.sub}>내 선택은 이 폰에만 보여요. 다른 사람은 절대 알 수 없어요.</Text>
+              <Text testID="voted" style={s.voted}>투표 완료 🎭</Text>
+              <Text style={s.sub}>무엇을 골랐는지는 어디에도 남지 않아요.</Text>
             </Card>
           ) : (
             <View style={s.voteRow}>

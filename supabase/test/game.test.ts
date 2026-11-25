@@ -6,10 +6,12 @@ import pg from 'pg';
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
 
 /** 앱이 하는 것과 같이 anon 권한으로 함수 호출 */
-async function rpc<T = any>(fn: string, args: Record<string, unknown>): Promise<T> {
+async function rpc<T = any>(fn: string, args: Record<string, unknown>, ip?: string): Promise<T> {
   const c = await db.connect();
   try {
     await c.query('begin; set local role anon');
+    // Supabase API 가 넘겨주는 요청 헤더 흉내 (IP 별 요청 제한 테스트용)
+    if (ip) await c.query(`select set_config('request.headers', $1, true)`, [JSON.stringify({ 'x-forwarded-for': `${ip}, 10.0.0.1` })]);
     const keys = Object.keys(args);
     const sql = `select public.${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(', ')}) as r`;
     const { rows } = await c.query(sql, Object.values(args));
@@ -84,7 +86,7 @@ describe('권한 (익명성의 핵심)', () => {
     await rpc('tm_start', auth(players[0]));
     await expect(
       rpc('tm_vote', { p_player: players[1].id, p_secret: players[0].secret, p_yes: true }),
-    ).rejects.toThrow(/나가졌거나/);
+    ).rejects.toThrow(/나가졌/);
   });
 });
 
@@ -98,7 +100,7 @@ describe('게임 진행', () => {
 
   it('없는 코드, 중복 닉네임은 입장 실패', async () => {
     const { code } = await room(['M']);
-    await expect(rpc('tm_join_room', { p_code: 'ZZZZZ', p_nickname: 'a', p_gender: 'M' })).rejects.toThrow(/없어요/);
+    expect((await rpc('tm_join_room', { p_code: 'ZZZZZ', p_nickname: 'a', p_gender: 'M' })).error).toMatch(/없어요/);
     await expect(rpc('tm_join_room', { p_code: code, p_nickname: 'p0', p_gender: 'M' })).rejects.toThrow(/닉네임/);
   });
 
@@ -228,9 +230,9 @@ describe('나가기 / 연결 끊김', () => {
     expect((await rpc('tm_sync', auth(players[0]))).phase).toBe('lobby');
   });
 
-  it('잠깐 끊기면 접속 끊김으로 표시되고, 다시 신호를 보내면 복귀', async () => {
+  it('잠깐 끊기면 접속 끊김으로 표시되고, 30초 안에 다시 신호를 보내면 복귀', async () => {
     const { players } = await room(['M', 'F']);
-    await goStale(players[1], 30);
+    await goStale(players[1], 25);
     let s = await rpc('tm_sync', auth(players[0]));
     expect(s.players.find((p: any) => p.nickname === 'p1').connected).toBe(false);
     await rpc('tm_sync', auth(players[1]));
@@ -238,17 +240,66 @@ describe('나가기 / 연결 끊김', () => {
     expect(s.players.find((p: any) => p.nickname === 'p1').connected).toBe(true);
   });
 
-  it('60초 넘게 끊기면 방에서 빠지고, 본인은 다시 못 들어온다', async () => {
+  it('30초 넘게 끊기면 방에서 빠지고, 본인은 다시 못 들어온다', async () => {
     const { players } = await room(['M', 'F']);
-    await goStale(players[1], 90);
+    await goStale(players[1], 35);
     const s = await rpc('tm_sync', auth(players[0]));
     expect(s.players).toHaveLength(1);
-    await expect(rpc('tm_sync', auth(players[1]))).rejects.toThrow(/나가졌거나/);
+    await expect(rpc('tm_sync', auth(players[1]))).rejects.toThrow(/나가졌/);
   });
 
   it('마지막 사람이 나가면 방이 삭제된다', async () => {
     const { players, roomId } = await room(['M']);
     await rpc('tm_leave', auth(players[0]));
+    const { rows } = await db.query('select count(*)::int n from truemask.rooms where id = $1', [roomId]);
+    expect(rows[0].n).toBe(0);
+  });
+
+  it('질문 시작 때 잠깐 끊겨 있던 사람도 투표할 수 있다 ("쉬기" 없음)', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
+    await goStale(players[3], 25);
+    const s = await rpc('tm_start', auth(players[0]));
+    expect(s.voterCount).toBe(4);
+    await voteAll(players.slice(0, 3), [true, true, false]);
+    const after = await rpc('tm_vote', { ...auth(players[3]), p_yes: true });
+    expect(after.lastResult).toMatchObject({ yes: 3, total: 4 });
+  });
+
+  it('투표 중 방장이 튕기면 30초 뒤 방장이 넘어가고, 남은 사람 투표로 공개된다', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
+    await rpc('tm_start', auth(players[0]));
+    await voteAll(players.slice(1), [true, false, true]);
+    await goStale(players[0], 35);
+    const s = await rpc('tm_sync', auth(players[1]));
+    expect(s.players).toHaveLength(3);
+    expect(s.players.find((p: any) => p.isHost).nickname).toBe('p1');
+    expect(s.phase).toBe('reveal');
+    expect(s.lastResult).toMatchObject({ yes: 2, total: 3 });
+  });
+});
+
+describe('남용 방지 / 정리', () => {
+  it('같은 IP에서 10분에 방 5개까지만 만들 수 있다', async () => {
+    const ip = `198.51.100.${Math.floor(Math.random() * 250)}`;
+    const args = { p_nickname: 'a', p_gender: 'M', p_mode: 'mixed', p_question_count: 5 };
+    for (let i = 0; i < 5; i++) await rpc('tm_create_room', args, ip);
+    await expect(rpc('tm_create_room', args, ip)).rejects.toThrow(/너무 자주/);
+    await expect(rpc('tm_create_room', args, '203.0.113.9')).resolves.toBeTruthy(); // 다른 IP는 괜찮음
+  });
+
+  it('틀린 코드 입장 시도도 횟수에 포함되어 무작위 대입을 막는다', async () => {
+    const ip = `192.0.2.${Math.floor(Math.random() * 250)}`;
+    for (let i = 0; i < 30; i++) {
+      const r = await rpc('tm_join_room', { p_code: 'ZZZZZ', p_nickname: 'a', p_gender: 'M' }, ip);
+      expect(r.error).toMatch(/없어요/);
+    }
+    await expect(rpc('tm_join_room', { p_code: 'ZZZZZ', p_nickname: 'a', p_gender: 'M' }, ip)).rejects.toThrow(/너무 많아요/);
+  });
+
+  it('10분 넘게 아무도 없는 방은 새 방이 만들어질 때 정리된다', async () => {
+    const { roomId } = await room(['M', 'F']);
+    await db.query(`update truemask.players set last_seen = now() - interval '11 minutes' where room_id = $1`, [roomId]);
+    await room(['M']);
     const { rows } = await db.query('select count(*)::int n from truemask.rooms where id = $1', [roomId]);
     expect(rows[0].n).toBe(0);
   });

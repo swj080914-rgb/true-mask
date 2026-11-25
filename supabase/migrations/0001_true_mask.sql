@@ -74,6 +74,14 @@ create table if not exists truemask.questions (
   unique (mode, body)
 );
 
+-- 같은 IP에서 짧은 시간에 너무 많이 방을 만들거나 입장 시도하는 것을 막기 위한 기록 (1시간 뒤 삭제)
+create table if not exists truemask.rate_events (
+  ip text not null,
+  action text not null,
+  at timestamptz not null default now()
+);
+create index if not exists rate_events_idx on truemask.rate_events (ip, action, at);
+
 create table if not exists truemask.config (
   key text primary key,
   value text not null
@@ -97,6 +105,7 @@ alter table truemask.votes enable row level security;
 alter table truemask.results enable row level security;
 alter table truemask.questions enable row level security;
 alter table truemask.config enable row level security;
+alter table truemask.rate_events enable row level security;
 alter table public.tm_room_signals enable row level security;
 
 revoke all on all tables in schema truemask from public, anon, authenticated;
@@ -160,15 +169,17 @@ on conflict (mode, body) do nothing;
 -- 내부 함수 (truemask 스키마 — 앱에서 직접 호출 불가)
 -- =====================================================================
 
--- 이 시간 안에 신호(하트비트)가 있었으면 접속 중으로 본다
+-- 앱은 화면을 만지지 않아도 8초마다 자동으로 신호(하트비트)를 보낸다.
+-- 이 시간 안에 신호가 있었으면 접속 중으로 본다
 create or replace function truemask.online_since() returns timestamptz
 language sql stable set search_path = truemask, pg_temp
-as $$ select now() - interval '25 seconds' $$;
+as $$ select now() - interval '20 seconds' $$;
 
--- 이 시간 넘게 신호가 없으면 방에서 내보낸다 (폰 화면 꺼짐 대비 유예)
+-- 이 시간 넘게 신호가 없으면(인터넷 끊김, 앱 종료) 방에서 내보낸다.
+-- 방장이었다면 남은 사람에게 방장이 넘어간다.
 create or replace function truemask.gone_before() returns timestamptz
 language sql stable set search_path = truemask, pg_temp
-as $$ select now() - interval '60 seconds' $$;
+as $$ select now() - interval '30 seconds' $$;
 
 create or replace function truemask.fail(msg text) returns void
 language plpgsql set search_path = truemask, pg_temp
@@ -177,6 +188,47 @@ as $$ begin raise exception using message = msg, errcode = 'P0001'; end $$;
 create or replace function truemask.bump(p_room uuid) returns void
 language sql set search_path = truemask, pg_temp
 as $$ update public.tm_room_signals set version = version + 1 where room_id = p_room $$;
+
+-- 요청한 사람의 IP (Supabase API 를 거친 요청에만 있음)
+create or replace function truemask.client_ip() returns text
+language plpgsql stable set search_path = truemask, pg_temp
+as $$
+declare h json;
+begin
+  h := nullif(current_setting('request.headers', true), '')::json;
+  return nullif(btrim(coalesce(
+    h ->> 'cf-connecting-ip',
+    h ->> 'x-real-ip',
+    split_part(h ->> 'x-forwarded-for', ',', 1)
+  )), '');
+exception when others then
+  return null;
+end $$;
+
+-- 같은 IP에서 window 동안 max 번 넘게 하면 거절. 허용되면 기록을 남긴다.
+create or replace function truemask.rate_limited(p_action text, p_max int, p_window interval) returns boolean
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare v_ip text := client_ip();
+begin
+  if v_ip is null then return false; end if;
+  if (select count(*) from rate_events e where e.ip = v_ip
+        and e.action = p_action and e.at > now() - p_window) >= p_max then
+    return true;
+  end if;
+  insert into rate_events (ip, action) values (v_ip, p_action);
+  return false;
+end $$;
+
+-- 버려진 방(10분 넘게 아무 신호 없음)과 오래된 기록 정리
+create or replace function truemask.sweep() returns void
+language sql set search_path = truemask, pg_temp
+as $$
+  delete from rooms r
+  where r.created_at < now() - interval '1 day'
+     or not exists (select 1 from players p where p.room_id = r.id and p.last_seen > now() - interval '10 minutes');
+  delete from rate_events where at < now() - interval '1 hour';
+$$;
 
 create or replace function truemask.clean_nickname(n text) returns text
 language sql immutable set search_path = truemask, pg_temp
@@ -201,7 +253,8 @@ as $$
 begin
   update rooms set phase = 'voting' where id = p_room;
   delete from votes where room_id = p_room;
-  update players set is_voter = (last_seen > online_since()) where room_id = p_room;
+  -- 방에 있는 모두가 투표 대상. 연결이 끊긴 사람은 30초 뒤 방에서 나가지면서 자동으로 빠진다.
+  update players set is_voter = true where room_id = p_room;
 end $$;
 
 -- 결과 공개: 집계만 저장하고 개별 투표는 삭제
@@ -315,12 +368,12 @@ declare
 begin
   select room_id into room from players where id = p_player and secret = p_secret;
   if room is null then
-    raise exception using message = '방에서 나가졌거나 오래 연결이 끊겼어요.', errcode = 'P0001', hint = 'gone';
+    raise exception using message = '연결이 끊겨서 방에서 나가졌어요.', errcode = 'P0001', hint = 'gone';
   end if;
   perform 1 from rooms where id = room for update; -- 같은 방 요청은 한 번에 하나씩
   select * into p from players where id = p_player;
   if not found then
-    raise exception using message = '방에서 나가졌거나 오래 연결이 끊겼어요.', errcode = 'P0001', hint = 'gone';
+    raise exception using message = '연결이 끊겨서 방에서 나가졌어요.', errcode = 'P0001', hint = 'gone';
   end if;
   was_offline := p.last_seen <= online_since();
   update players set last_seen = now() where id = p_player;
@@ -408,8 +461,10 @@ begin
   if p_gender is null or p_gender not in ('M', 'F') then perform fail('성별을 선택해 주세요.'); end if;
   if p_mode is null or p_mode not in ('mixed', 'male', 'female') then perform fail('모드를 선택해 주세요.'); end if;
 
-  -- 하루 지난 방은 정리
-  delete from rooms where created_at < now() - interval '1 day';
+  perform sweep();
+  if rate_limited('create', 5, interval '10 minutes') then
+    perform fail('방을 너무 자주 만들었어요. 몇 분 뒤에 다시 시도해 주세요.');
+  end if;
 
   loop
     new_code := (
@@ -437,8 +492,14 @@ declare
   r rooms;
   p players;
 begin
+  if rate_limited('join', 30, interval '10 minutes') then
+    perform fail('입장 시도가 너무 많아요. 몇 분 뒤에 다시 시도해 주세요.');
+  end if;
   select * into r from rooms where code = upper(btrim(coalesce(p_code, ''))) for update;
-  if not found then perform fail('그런 방 코드는 없어요.'); end if;
+  if not found then
+    -- 예외로 끝내면 위의 시도 기록까지 취소되므로, 결과로 에러를 돌려준다 (코드 무작위 대입 방지)
+    return jsonb_build_object('error', '그런 방 코드는 없어요.');
+  end if;
   if nick is null then perform fail('닉네임을 1~12자로 입력해 주세요.'); end if;
   if p_gender is null or p_gender not in ('M', 'F') then perform fail('성별을 선택해 주세요.'); end if;
 

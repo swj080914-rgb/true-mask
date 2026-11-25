@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import type { Gender, Mode, RoomState } from './protocol';
 
 /** 접속 중 표시를 유지하고 상태를 맞추기 위해 이 간격으로 서버에 신호를 보낸다 */
 const HEARTBEAT_MS = 8000;
+/** 앱이 꺼졌다 켜져도 원래 방으로 돌아가기 위해 폰에 저장해 두는 키 */
+const SESSION_KEY = 'truemask.session';
+
+const saveSession = (s: Session | null) =>
+  (s ? AsyncStorage.setItem(SESSION_KEY, JSON.stringify(s)) : AsyncStorage.removeItem(SESSION_KEY)).catch(() => {});
 
 export interface Game {
+  /** 앱을 켤 때 저장된 방으로 복귀를 시도하는 중 */
+  restoring: boolean;
   connected: boolean;
   state: RoomState | null;
   playerId: string | null;
@@ -41,6 +49,7 @@ export function useGame(): Game {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(true);
 
   /** 같은 방의 더 오래된 상태가 늦게 도착하면 버린다 */
   const applyState = useCallback((s: RoomState | null) => {
@@ -52,6 +61,7 @@ export function useGame(): Game {
 
   const resetToHome = useCallback(() => {
     sessionRef.current = null;
+    void saveSession(null);
     setPlayerId(null);
     applyState(null);
   }, [applyState]);
@@ -111,6 +121,36 @@ export function useGame(): Game {
     return r.ok;
   };
 
+  // 앱을 켤 때: 저장된 방이 있으면 그 방으로 바로 복귀
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SESSION_KEY);
+        const saved: Session | null = raw ? JSON.parse(raw) : null;
+        if (saved && !cancelled && !sessionRef.current) {
+          sessionRef.current = saved;
+          setPlayerId(saved.playerId);
+          const r = await rpc<RoomState>('tm_sync', { p_player: saved.playerId, p_secret: saved.secret }, { silent: true });
+          if (cancelled) return;
+          if (r.ok && sessionRef.current === saved) applyState(r.data);
+          else if (!r.ok && sessionRef.current === saved && !stateRef.current) {
+            // 인터넷이 없어 확인을 못 한 경우: 처음 화면으로 두되 저장은 지우지 않아 다음에 다시 시도
+            sessionRef.current = null;
+            setPlayerId(null);
+          }
+        }
+      } catch {
+        // 저장소를 못 읽으면 처음 화면에서 시작
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rpc, applyState]);
+
   const roomId = state?.roomId;
 
   // 방에 있는 동안: Realtime 신호 구독 + 하트비트 + 앱 복귀 시 즉시 동기화
@@ -137,9 +177,14 @@ export function useGame(): Game {
     };
   }, [roomId, sync]);
 
-  const enter = (r: RpcResult<{ playerId: string; secret: string; state: RoomState }>) => {
+  const enter = (r: RpcResult<{ playerId: string; secret: string; state: RoomState; error?: string }>) => {
     if (!r.ok) return false;
+    if (r.data.error) {
+      setError(r.data.error);
+      return false;
+    }
     sessionRef.current = { playerId: r.data.playerId, secret: r.data.secret, roomId: r.data.state.roomId };
+    void saveSession(sessionRef.current);
     setPlayerId(r.data.playerId);
     stateRef.current = null;
     applyState(r.data.state);
@@ -147,6 +192,7 @@ export function useGame(): Game {
   };
 
   return {
+    restoring,
     connected,
     state,
     playerId,

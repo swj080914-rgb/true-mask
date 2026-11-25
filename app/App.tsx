@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useGame } from './src/useGame';
 import { C } from './src/ui';
@@ -15,7 +15,8 @@ export default function App() {
 
   // 화면은 서버가 보내주는 방 상태(phase)를 그대로 따라간다
   let screen;
-  if (!state) screen = <HomeScreen game={game} />;
+  if (!state && game.restoring) screen = <ActivityIndicator color={C.accent} style={{ marginTop: 120 }} />;
+  else if (!state) screen = <HomeScreen game={game} />;
   else if (state.phase === 'lobby') screen = <LobbyScreen game={game} state={state} isHost={isHost} />;
   else if (state.phase === 'finished') screen = <FinishedScreen game={game} state={state} isHost={isHost} />;
   else screen = <GameScreen game={game} state={state} isHost={isHost} />;
