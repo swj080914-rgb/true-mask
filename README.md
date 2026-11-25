@@ -34,6 +34,17 @@ cd app && npm install && npx expo start
 - 폰에 **Expo Go** 앱을 설치하고 QR을 찍으면 바로 실행됩니다.
 - 브라우저로 보려면 `npx expo start --web`을 실행하세요. 탭을 여러 개 열면 여러 명처럼 테스트할 수 있습니다.
 
+## 웹으로 배포 (Vercel)
+
+친구들이 앱 설치 없이 링크만 열어서 플레이할 수 있게 웹 버전을 배포합니다.
+
+1. https://vercel.com 에 GitHub 계정으로 가입
+2. **Add New → Project** → 이 저장소 **Import**
+3. **Root Directory**를 `app`으로 지정 (나머지 빌드 설정은 `app/vercel.json`에 들어 있음)
+4. **Deploy** → 나오는 `https://….vercel.app` 주소를 친구들에게 공유
+
+이후 GitHub에 코드를 올릴 때마다 Vercel이 자동으로 다시 배포합니다.
+
 DB 로직 테스트는 로컬 Postgres가 필요합니다.
 
 ```bash
