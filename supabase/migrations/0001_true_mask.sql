@@ -1,0 +1,629 @@
+-- =====================================================================
+-- 트루 마스크 (True Mask) — Supabase 스키마
+--
+-- Supabase 대시보드 > SQL Editor 에 이 파일 전체를 붙여넣고 Run 하세요.
+-- 여러 번 실행해도 안전합니다 (질문 목록과 함수가 최신으로 갱신됨).
+--
+-- 보안 설계
+--  * 게임 데이터(방, 참가자, 투표)는 API로 노출되지 않는 `truemask` 스키마에 있다.
+--    앱(공개키)은 이 테이블을 직접 읽거나 쓸 수 없다.
+--  * 앱은 public.tm_* 함수(RPC)만 호출할 수 있고, 함수는 집계 숫자만 돌려준다.
+--  * 개별 투표(truemask.votes)는 결과 공개 즉시 삭제된다.
+--  * 실시간 갱신은 public.tm_room_signals 의 version 숫자만 Realtime 으로 흘려보낸다.
+-- =====================================================================
+
+create schema if not exists truemask;
+revoke all on schema truemask from public;
+
+-- ---------------------------------------------------------------------
+-- 테이블
+-- ---------------------------------------------------------------------
+
+create table if not exists truemask.rooms (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  mode text not null check (mode in ('mixed', 'male', 'female')),
+  question_count int not null check (question_count between 5 and 8),
+  premium boolean not null default false,
+  phase text not null default 'lobby' check (phase in ('lobby', 'voting', 'reveal', 'finished')),
+  questions text[] not null default '{}',
+  question_index int not null default 0,
+  host_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists truemask.players (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid not null references truemask.rooms (id) on delete cascade,
+  secret uuid not null default gen_random_uuid(), -- 이 참가자 본인만 아는 토큰
+  nickname text not null,
+  gender text not null check (gender in ('M', 'F')),
+  joined_at timestamptz not null default clock_timestamp(),
+  last_seen timestamptz not null default now(),
+  is_voter boolean not null default false, -- 이번 질문에 투표해야 하는 사람
+  unique (room_id, nickname)
+);
+create index if not exists players_room_idx on truemask.players (room_id);
+
+-- 개별 투표. 결과 공개 순간 삭제되며, 어떤 API 로도 조회할 수 없다.
+create table if not exists truemask.votes (
+  player_id uuid primary key references truemask.players (id) on delete cascade,
+  room_id uuid not null references truemask.rooms (id) on delete cascade,
+  yes boolean not null
+);
+
+-- 공개된 결과 (집계 숫자만)
+create table if not exists truemask.results (
+  room_id uuid not null references truemask.rooms (id) on delete cascade,
+  idx int not null,
+  question text not null,
+  yes int not null,
+  total int not null,
+  male_yes int,
+  female_yes int,
+  gender_hidden boolean not null default false,
+  primary key (room_id, idx)
+);
+
+-- 질문 목록. 대시보드 Table Editor 에서 추가/수정/비활성화 가능 (앱 재배포 불필요)
+create table if not exists truemask.questions (
+  id serial primary key,
+  mode text not null check (mode in ('common', 'mixed', 'male', 'female')),
+  body text not null,
+  enabled boolean not null default true,
+  unique (mode, body)
+);
+
+create table if not exists truemask.config (
+  key text primary key,
+  value text not null
+);
+-- 출시 전에는 'false' 로 바꾸고 실제 결제 검증(Edge Function)을 붙이세요.
+insert into truemask.config values ('allow_mock_premium', 'true') on conflict do nothing;
+
+-- 앱이 Realtime 으로 구독하는 유일한 테이블. 방 id 와 버전 숫자만 있다.
+create table if not exists public.tm_room_signals (
+  room_id uuid primary key references truemask.rooms (id) on delete cascade,
+  version bigint not null default 0
+);
+
+-- ---------------------------------------------------------------------
+-- 권한: truemask 스키마는 완전히 잠그고, 신호 테이블은 읽기만 허용
+-- ---------------------------------------------------------------------
+
+alter table truemask.rooms enable row level security;
+alter table truemask.players enable row level security;
+alter table truemask.votes enable row level security;
+alter table truemask.results enable row level security;
+alter table truemask.questions enable row level security;
+alter table truemask.config enable row level security;
+alter table public.tm_room_signals enable row level security;
+
+revoke all on all tables in schema truemask from public, anon, authenticated;
+revoke all on public.tm_room_signals from public, anon, authenticated;
+grant select on public.tm_room_signals to anon, authenticated;
+
+drop policy if exists "signals are readable" on public.tm_room_signals;
+create policy "signals are readable" on public.tm_room_signals
+  for select to anon, authenticated using (true);
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (
+       select 1 from pg_publication_tables
+       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'tm_room_signals'
+     ) then
+    alter publication supabase_realtime add table public.tm_room_signals;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 질문 데이터
+-- ---------------------------------------------------------------------
+
+insert into truemask.questions (mode, body) values
+  ('common', '나는 이 방에 좋아하는 사람이 있다.'),
+  ('common', '나는 이 방에 있는 누군가에게 서운했던 적이 있다.'),
+  ('common', '나는 이 방의 누군가에게 말 못 한 비밀이 있다.'),
+  ('common', '나는 이 방의 누군가를 질투해 본 적이 있다.'),
+  ('common', '나는 이 모임에 나오기 싫었던 날이 있다.'),
+  ('common', '나는 이 방의 누군가에 대해 뒷담화를 해본 적이 있다.'),
+  ('common', '나는 이 방에서 가장 친하다고 생각하는 사람이 정해져 있다.'),
+  ('common', '나는 이 방의 누군가에게 고백받고 싶다.'),
+  ('common', '나는 이 방의 누군가와 연락을 일부러 피한 적이 있다.'),
+  ('common', '나는 이 방의 누군가에게 돈을 빌려주고 아직 못 받았다.'),
+  ('mixed', '나는 이 방의 이성 중 누군가를 이성으로 느낀 적이 있다.'),
+  ('mixed', '나는 이 방의 누군가와 사귀어도 괜찮다고 생각한다.'),
+  ('mixed', '나는 이 방의 누군가와 단둘이 만나고 싶다.'),
+  ('mixed', '나는 이 방의 누군가에게 설렌 적이 있다.'),
+  ('mixed', '나는 이 방에 내 이상형에 가까운 사람이 있다.'),
+  ('mixed', '나는 이 방의 누군가의 연애를 몰래 응원하고 있다.'),
+  ('mixed', '나는 이 방의 누군가의 SNS를 몰래 자주 본다.'),
+  ('male', '나는 이 방의 누군가에게 연애 상담을 받아본 적이 있다.'),
+  ('male', '나는 이 방의 누군가보다 내가 더 잘생겼다고 생각한다.'),
+  ('male', '나는 이 방의 누군가의 여자친구(전 여자친구 포함)를 좋게 본 적이 있다.'),
+  ('male', '나는 이 방의 누군가에게 지는 게 제일 싫다.'),
+  ('male', '나는 요즘 몰래 연락하는 사람이 있다.'),
+  ('male', '나는 이 방의 누군가에게 고마운데 한 번도 말한 적 없다.'),
+  ('male', '나는 이 방의 누군가와 진지하게 싸울 뻔한 적이 있다.'),
+  ('female', '나는 이 방의 누군가에게 연애 상담을 받아본 적이 있다.'),
+  ('female', '나는 이 방의 누군가의 남자친구(전 남자친구 포함)를 좋게 본 적이 있다.'),
+  ('female', '나는 이 방의 누군가의 스타일을 따라 해본 적이 있다.'),
+  ('female', '나는 이 방의 누군가에게 말 못 한 속상함이 있다.'),
+  ('female', '나는 요즘 몰래 연락하는 사람이 있다.'),
+  ('female', '나는 이 방의 누군가에게 고마운데 한 번도 말한 적 없다.'),
+  ('female', '나는 이 방의 누군가와 단톡방 말고 따로 뒷얘기를 한 적이 있다.')
+on conflict (mode, body) do nothing;
+
+-- =====================================================================
+-- 내부 함수 (truemask 스키마 — 앱에서 직접 호출 불가)
+-- =====================================================================
+
+-- 이 시간 안에 신호(하트비트)가 있었으면 접속 중으로 본다
+create or replace function truemask.online_since() returns timestamptz
+language sql stable set search_path = truemask, pg_temp
+as $$ select now() - interval '25 seconds' $$;
+
+-- 이 시간 넘게 신호가 없으면 방에서 내보낸다 (폰 화면 꺼짐 대비 유예)
+create or replace function truemask.gone_before() returns timestamptz
+language sql stable set search_path = truemask, pg_temp
+as $$ select now() - interval '60 seconds' $$;
+
+create or replace function truemask.fail(msg text) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$ begin raise exception using message = msg, errcode = 'P0001'; end $$;
+
+create or replace function truemask.bump(p_room uuid) returns void
+language sql set search_path = truemask, pg_temp
+as $$ update public.tm_room_signals set version = version + 1 where room_id = p_room $$;
+
+create or replace function truemask.clean_nickname(n text) returns text
+language sql immutable set search_path = truemask, pg_temp
+as $$
+  select case when char_length(c) between 1 and 12 then c end
+  from (select regexp_replace(btrim(coalesce(n, '')), '\s+', ' ', 'g') as c) t
+$$;
+
+create or replace function truemask.reset_lobby(p_room uuid) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$
+begin
+  update rooms set phase = 'lobby', questions = '{}', question_index = 0 where id = p_room;
+  delete from votes where room_id = p_room;
+  delete from results where room_id = p_room;
+  update players set is_voter = false where room_id = p_room;
+end $$;
+
+create or replace function truemask.begin_question(p_room uuid) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$
+begin
+  update rooms set phase = 'voting' where id = p_room;
+  delete from votes where room_id = p_room;
+  update players set is_voter = (last_seen > online_since()) where room_id = p_room;
+end $$;
+
+-- 결과 공개: 집계만 저장하고 개별 투표는 삭제
+create or replace function truemask.reveal(p_room uuid) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare
+  r rooms;
+  c record;
+  safe boolean;
+begin
+  select * into r from rooms where id = p_room;
+  select
+    count(*)::int as total,
+    count(*) filter (where v.yes)::int as yes,
+    count(*) filter (where p.gender = 'M')::int as n_m,
+    count(*) filter (where p.gender = 'M' and v.yes)::int as y_m,
+    count(*) filter (where p.gender = 'F')::int as n_f,
+    count(*) filter (where p.gender = 'F' and v.yes)::int as y_f
+  into c
+  from votes v join players p on p.id = v.player_id
+  where v.room_id = p_room;
+
+  -- 한 성별 투표자가 1명뿐이면 성별 내역이 그 사람 답을 드러내므로 숨긴다
+  safe := (c.n_m = 0 or c.n_m >= 2) and (c.n_f = 0 or c.n_f >= 2);
+
+  insert into results (room_id, idx, question, yes, total, male_yes, female_yes, gender_hidden)
+  values (
+    p_room, r.question_index, r.questions[r.question_index + 1], c.yes, c.total,
+    case when r.premium and safe then c.y_m end,
+    case when r.premium and safe then c.y_f end,
+    r.premium and not safe
+  )
+  on conflict (room_id, idx) do update set
+    question = excluded.question, yes = excluded.yes, total = excluded.total,
+    male_yes = excluded.male_yes, female_yes = excluded.female_yes, gender_hidden = excluded.gender_hidden;
+
+  delete from votes where room_id = p_room;
+  update players set is_voter = false where room_id = p_room;
+  update rooms set phase = 'reveal' where id = p_room;
+end $$;
+
+create or replace function truemask.maybe_reveal(p_room uuid) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare
+  n_voters int;
+  n_voted int;
+begin
+  if (select phase from rooms where id = p_room) <> 'voting' then return; end if;
+  select count(*) into n_voters from players where room_id = p_room and is_voter;
+  select count(*) into n_voted from votes v join players p on p.id = v.player_id
+    where v.room_id = p_room and p.is_voter;
+  if n_voters > 0 and n_voted >= n_voters then
+    perform reveal(p_room);
+  end if;
+end $$;
+
+-- 참가자가 빠진 뒤 정리: 방장 넘기기, 인원 부족 시 대기실, 남은 사람으로 자동 공개
+create or replace function truemask.after_removal(p_room uuid) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare
+  r rooms;
+  n int;
+begin
+  select * into r from rooms where id = p_room;
+  if not found then return; end if;
+  select count(*) into n from players where room_id = p_room;
+  if n = 0 then
+    delete from rooms where id = p_room;
+    return;
+  end if;
+  if not exists (select 1 from players where id = r.host_id) then
+    update rooms set host_id = (
+      select id from players where room_id = p_room
+      order by (last_seen > online_since()) desc, joined_at
+      limit 1
+    ) where id = p_room;
+  end if;
+  if r.phase in ('voting', 'reveal') and n < 3 then
+    perform reset_lobby(p_room);
+  elsif r.phase = 'voting' then
+    perform maybe_reveal(p_room);
+  end if;
+end $$;
+
+-- 오래 연결이 끊긴 참가자 정리
+create or replace function truemask.cleanup(p_room uuid) returns void
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare
+  removed int;
+begin
+  delete from players where room_id = p_room and last_seen < gone_before();
+  get diagnostics removed = row_count;
+  if removed > 0 then
+    perform after_removal(p_room);
+    perform bump(p_room);
+  end if;
+end $$;
+
+-- 호출자 확인 + 방 잠금 + 하트비트 + 정리. 모든 공개 함수의 입구.
+create or replace function truemask.enter(p_player uuid, p_secret uuid) returns truemask.players
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare
+  p players;
+  room uuid;
+  was_offline boolean;
+begin
+  select room_id into room from players where id = p_player and secret = p_secret;
+  if room is null then
+    raise exception using message = '방에서 나가졌거나 오래 연결이 끊겼어요.', errcode = 'P0001', hint = 'gone';
+  end if;
+  perform 1 from rooms where id = room for update; -- 같은 방 요청은 한 번에 하나씩
+  select * into p from players where id = p_player;
+  if not found then
+    raise exception using message = '방에서 나가졌거나 오래 연결이 끊겼어요.', errcode = 'P0001', hint = 'gone';
+  end if;
+  was_offline := p.last_seen <= online_since();
+  update players set last_seen = now() where id = p_player;
+  perform cleanup(room);
+  if was_offline then perform bump(room); end if;
+  return p;
+end $$;
+
+create or replace function truemask.assert_host(p truemask.players) returns truemask.rooms
+language plpgsql set search_path = truemask, pg_temp
+as $$
+declare r rooms;
+begin
+  select * into r from rooms where id = p.room_id;
+  if r.host_id is distinct from p.id then perform fail('방장만 할 수 있어요.'); end if;
+  return r;
+end $$;
+
+create or replace function truemask.result_json(x truemask.results) returns jsonb
+language sql stable set search_path = truemask, pg_temp
+as $$
+  select jsonb_build_object('question', x.question, 'yes', x.yes, 'total', x.total)
+    || case when x.male_yes is not null
+         then jsonb_build_object('genderBreakdown', jsonb_build_object('M', x.male_yes, 'F', x.female_yes))
+         else '{}'::jsonb end
+    || case when x.gender_hidden then jsonb_build_object('genderHidden', true) else '{}'::jsonb end
+$$;
+
+-- 앱으로 보내는 방 상태. 개별 투표 내용과 성별은 절대 포함하지 않는다.
+create or replace function truemask.state(p_room uuid) returns jsonb
+language sql stable set search_path = truemask, pg_temp
+as $$
+  select jsonb_build_object(
+    'roomId', r.id,
+    'version', (select version from public.tm_room_signals s where s.room_id = r.id),
+    'code', r.code,
+    'mode', r.mode,
+    'questionCount', r.question_count,
+    'premium', r.premium,
+    'phase', r.phase,
+    'players', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', p.id,
+        'nickname', p.nickname,
+        'isHost', p.id = r.host_id,
+        'connected', p.last_seen > online_since(),
+        'hasVoted', exists (select 1 from votes v where v.player_id = p.id)
+      ) order by p.joined_at)
+      from players p where p.room_id = r.id
+    ), '[]'::jsonb),
+    'questionIndex', r.question_index,
+    'currentQuestion', case when r.phase = 'lobby' then null else r.questions[r.question_index + 1] end,
+    'votedCount', (select count(*) from votes v where v.room_id = r.id),
+    'voterCount', (select count(*) from players p where p.room_id = r.id and p.is_voter),
+    'lastResult', case when r.phase in ('reveal', 'finished') then (
+      select result_json(x) from results x where x.room_id = r.id and x.idx = r.question_index
+    ) end,
+    'history', case when r.phase = 'finished' then coalesce((
+      select jsonb_agg(result_json(x) order by x.idx) from results x where x.room_id = r.id
+    ), '[]'::jsonb) else '[]'::jsonb end
+  )
+  from rooms r where r.id = p_room
+$$;
+
+-- 내부 함수는 앱에서 호출할 수 없게 잠근다
+revoke all on all functions in schema truemask from public, anon, authenticated;
+
+-- =====================================================================
+-- 공개 함수 (앱이 공개키로 호출하는 RPC)
+-- =====================================================================
+
+create or replace function public.tm_create_room(
+  p_nickname text, p_gender text, p_mode text, p_question_count int
+) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  nick text := clean_nickname(p_nickname);
+  chars constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; -- 헷갈리는 0/O, 1/I 제외
+  new_code text;
+  room_id uuid;
+  p players;
+begin
+  if nick is null then perform fail('닉네임을 1~12자로 입력해 주세요.'); end if;
+  if p_gender is null or p_gender not in ('M', 'F') then perform fail('성별을 선택해 주세요.'); end if;
+  if p_mode is null or p_mode not in ('mixed', 'male', 'female') then perform fail('모드를 선택해 주세요.'); end if;
+
+  -- 하루 지난 방은 정리
+  delete from rooms where created_at < now() - interval '1 day';
+
+  loop
+    new_code := (
+      select string_agg(substr(chars, 1 + floor(random() * length(chars))::int, 1), '')
+      from generate_series(1, 5)
+    );
+    exit when not exists (select 1 from rooms where code = new_code);
+  end loop;
+
+  insert into rooms (code, mode, question_count)
+  values (new_code, p_mode, least(8, greatest(5, coalesce(p_question_count, 5))))
+  returning id into room_id;
+  insert into players (room_id, nickname, gender) values (room_id, nick, p_gender) returning * into p;
+  update rooms set host_id = p.id where id = room_id;
+  insert into public.tm_room_signals (room_id) values (room_id);
+
+  return jsonb_build_object('playerId', p.id, 'secret', p.secret, 'state', state(room_id));
+end $$;
+
+create or replace function public.tm_join_room(p_code text, p_nickname text, p_gender text) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  nick text := clean_nickname(p_nickname);
+  r rooms;
+  p players;
+begin
+  select * into r from rooms where code = upper(btrim(coalesce(p_code, ''))) for update;
+  if not found then perform fail('그런 방 코드는 없어요.'); end if;
+  if nick is null then perform fail('닉네임을 1~12자로 입력해 주세요.'); end if;
+  if p_gender is null or p_gender not in ('M', 'F') then perform fail('성별을 선택해 주세요.'); end if;
+
+  perform cleanup(r.id);
+  select * into r from rooms where id = r.id;
+  if not found then perform fail('그런 방 코드는 없어요.'); end if;
+  if r.phase <> 'lobby' then perform fail('이미 게임이 시작된 방이에요.'); end if;
+  if (select count(*) from players where room_id = r.id) >= 12 then
+    perform fail('방이 꽉 찼어요. (최대 12명)');
+  end if;
+  if exists (select 1 from players where room_id = r.id and nickname = nick) then
+    perform fail('이미 같은 닉네임이 있어요.');
+  end if;
+
+  insert into players (room_id, nickname, gender) values (r.id, nick, p_gender) returning * into p;
+  perform bump(r.id);
+  return jsonb_build_object('playerId', p.id, 'secret', p.secret, 'state', state(r.id));
+end $$;
+
+-- 하트비트 겸 상태 조회. 앱이 몇 초마다, 그리고 Realtime 신호를 받을 때마다 호출.
+create or replace function public.tm_sync(p_player uuid, p_secret uuid) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare p players;
+begin
+  p := enter(p_player, p_secret);
+  return state(p.room_id);
+end $$;
+
+create or replace function public.tm_leave(p_player uuid, p_secret uuid) returns void
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare p players;
+begin
+  p := enter(p_player, p_secret);
+  delete from players where id = p.id;
+  perform after_removal(p.room_id);
+  perform bump(p.room_id);
+end $$;
+
+create or replace function public.tm_update_settings(
+  p_player uuid, p_secret uuid, p_mode text default null, p_question_count int default null
+) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms := assert_host(p);
+begin
+  if r.phase <> 'lobby' then perform fail('대기실에서만 바꿀 수 있어요.'); end if;
+  if p_mode is not null and p_mode not in ('mixed', 'male', 'female') then perform fail('잘못된 모드예요.'); end if;
+  update rooms set
+    mode = coalesce(p_mode, mode),
+    question_count = case when p_question_count is null then question_count
+                          else least(8, greatest(5, p_question_count)) end
+  where id = r.id;
+  perform bump(r.id);
+  return state(r.id);
+end $$;
+
+create or replace function public.tm_unlock_premium(p_player uuid, p_secret uuid, p_receipt text) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms := assert_host(p);
+begin
+  -- TODO(출시): 인앱결제 영수증은 Edge Function 에서 검증하고 서비스 키로 premium 을 켜도록 교체
+  if not ((select value from config where key = 'allow_mock_premium') = 'true' and p_receipt = 'mock-receipt') then
+    perform fail('결제를 확인하지 못했어요.');
+  end if;
+  update rooms set premium = true where id = r.id;
+  perform bump(r.id);
+  return state(r.id);
+end $$;
+
+create or replace function public.tm_start(p_player uuid, p_secret uuid) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms := assert_host(p);
+begin
+  if r.phase <> 'lobby' then perform fail('이미 진행 중이에요.'); end if;
+  if (select count(*) from players where room_id = r.id and last_seen > online_since()) < 3 then
+    perform fail('익명성을 위해 최소 3명이 필요해요.');
+  end if;
+  update rooms set
+    questions = array(
+      select body from questions
+      where enabled and mode in (r.mode, 'common')
+      group by body
+      order by random()
+      limit r.question_count
+    ),
+    question_index = 0
+  where id = r.id;
+  delete from results where room_id = r.id;
+  perform begin_question(r.id);
+  perform bump(r.id);
+  return state(r.id);
+end $$;
+
+create or replace function public.tm_vote(p_player uuid, p_secret uuid, p_yes boolean) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+begin
+  if (select phase from rooms where id = p.room_id) <> 'voting' then perform fail('지금은 투표 시간이 아니에요.'); end if;
+  if not p.is_voter then perform fail('이번 질문의 투표 대상이 아니에요.'); end if;
+  if exists (select 1 from votes where player_id = p.id) then perform fail('이미 투표했어요.'); end if;
+  insert into votes (player_id, room_id, yes) values (p.id, p.room_id, coalesce(p_yes, false));
+  perform maybe_reveal(p.room_id);
+  perform bump(p.room_id);
+  return state(p.room_id);
+end $$;
+
+create or replace function public.tm_force_reveal(p_player uuid, p_secret uuid) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms := assert_host(p);
+begin
+  if r.phase <> 'voting' then perform fail('지금은 공개할 수 없어요.'); end if;
+  if (select count(*) from votes where room_id = r.id) < 3 then
+    perform fail('최소 3명이 투표해야 공개할 수 있어요.');
+  end if;
+  perform reveal(r.id);
+  perform bump(r.id);
+  return state(r.id);
+end $$;
+
+create or replace function public.tm_next(p_player uuid, p_secret uuid) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms := assert_host(p);
+begin
+  if r.phase <> 'reveal' then perform fail('결과 공개 후에 넘어갈 수 있어요.'); end if;
+  if r.question_index + 1 >= coalesce(array_length(r.questions, 1), 0) then
+    update rooms set phase = 'finished' where id = r.id;
+  else
+    update rooms set question_index = question_index + 1 where id = r.id;
+    perform begin_question(r.id);
+  end if;
+  perform bump(r.id);
+  return state(r.id);
+end $$;
+
+create or replace function public.tm_restart(p_player uuid, p_secret uuid) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms := assert_host(p);
+begin
+  perform reset_lobby(r.id);
+  perform bump(r.id);
+  return state(r.id);
+end $$;
+
+-- 공개 함수만 앱(anon)에 실행 권한 부여
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'tm_create_room(text,text,text,int)',
+    'tm_join_room(text,text,text)',
+    'tm_sync(uuid,uuid)',
+    'tm_leave(uuid,uuid)',
+    'tm_update_settings(uuid,uuid,text,int)',
+    'tm_unlock_premium(uuid,uuid,text)',
+    'tm_start(uuid,uuid)',
+    'tm_vote(uuid,uuid,boolean)',
+    'tm_force_reveal(uuid,uuid)',
+    'tm_next(uuid,uuid)',
+    'tm_restart(uuid,uuid)'
+  ] loop
+    execute format('revoke all on function public.%s from public', f);
+    execute format('grant execute on function public.%s to anon, authenticated', f);
+  end loop;
+end $$;
+
+-- PostgREST 가 새 함수를 바로 인식하도록
+notify pgrst, 'reload schema';

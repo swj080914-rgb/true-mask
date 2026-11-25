@@ -1,4 +1,5 @@
-// 서버 server/src/protocol.ts 의 복사본입니다. 서버 쪽을 고치면 이 파일도 같이 맞춰 주세요.
+// Supabase 함수(supabase/migrations/0001_true_mask.sql)가 돌려주는 데이터 모양.
+// SQL 의 truemask.state() 를 고치면 이 파일도 같이 맞춰 주세요.
 
 export type Gender = 'M' | 'F';
 export type Mode = 'mixed' | 'male' | 'female';
@@ -29,6 +30,9 @@ export interface QuestionResult {
 }
 
 export interface RoomState {
+  roomId: string;
+  /** 상태가 바뀔 때마다 1씩 오른다. 늦게 도착한 옛 상태를 버리는 데 사용 */
+  version: number;
   code: string;
   mode: Mode;
   questionCount: number;
@@ -41,37 +45,4 @@ export interface RoomState {
   voterCount: number;
   lastResult: QuestionResult | null;
   history: QuestionResult[];
-}
-
-export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
-
-export interface ClientToServer {
-  'room:create': (
-    p: { nickname: string; gender: Gender; mode: Mode; questionCount: number },
-    ack: (r: Ack<{ playerId: string; state: RoomState }>) => void,
-  ) => void;
-  'room:join': (
-    p: { code: string; nickname: string; gender: Gender },
-    ack: (r: Ack<{ playerId: string; state: RoomState }>) => void,
-  ) => void;
-  'room:rejoin': (
-    p: { code: string; playerId: string },
-    ack: (r: Ack<{ state: RoomState }>) => void,
-  ) => void;
-  'room:leave': () => void;
-  'room:settings': (
-    p: { mode?: Mode; questionCount?: number },
-    ack: (r: Ack) => void,
-  ) => void;
-  'premium:unlock': (p: { receipt: string }, ack: (r: Ack) => void) => void;
-  'game:start': (ack: (r: Ack) => void) => void;
-  'game:vote': (p: { yes: boolean }, ack: (r: Ack) => void) => void;
-  'game:reveal': (ack: (r: Ack) => void) => void; // 호스트가 남은 투표를 기다리지 않고 공개
-  'game:next': (ack: (r: Ack) => void) => void;
-  'game:restart': (ack: (r: Ack) => void) => void;
-}
-
-export interface ServerToClient {
-  'room:state': (s: RoomState) => void;
-  'room:kicked': (reason: string) => void;
 }
