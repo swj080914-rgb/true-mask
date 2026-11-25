@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "트루 마스크",
+    "slug": "true-mask",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.truemask.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#14101F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.truemask.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "truemask",
+    "backgroundColor": "#14101F"
+  }
+}
