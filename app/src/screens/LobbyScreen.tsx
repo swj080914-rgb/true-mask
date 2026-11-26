@@ -16,7 +16,6 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
       <Card style={s.codeCard}>
         <Text style={s.codeLabel}>ROOM CODE</Text>
         <Text testID="room-code" style={s.code} selectable>{state.code}</Text>
-        <Text style={s.sub}>친구들에게 이 코드를 알려주세요</Text>
         <Button title="코드 공유하기" kind="secondary" onPress={share} style={{ marginTop: 14, alignSelf: 'stretch' }} />
       </Card>
 
@@ -92,7 +91,6 @@ const s = StyleSheet.create({
     fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 56, letterSpacing: 10, marginVertical: 4,
     textShadowColor: C.accentDark, textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 0,
   },
-  sub: { color: C.sub, fontSize: 14 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   count: { fontFamily: DISPLAY_FONT, fontSize: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 18, marginTop: 14 },
