@@ -15,7 +15,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#14101F",
+        "backgroundColor": "#7C4DFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -27,9 +27,28 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "truemask",
-    "backgroundColor": "#14101F",
+    "backgroundColor": "#110B22",
     "plugins": [
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#110B22"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9b7803cb-7965-4157-b12a-7d128c76b54b"
+      }
+    },
+    "owner": "swj080914",
+    "updates": {
+      "url": "https://u.expo.dev/9b7803cb-7965-4157-b12a-7d128c76b54b"
+    },
+    "runtimeVersion": "exposdk:58.0.0"
   }
 }

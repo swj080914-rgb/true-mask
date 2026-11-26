@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import type { Gender, Mode, RoomState } from './protocol';
+import * as purchases from './purchases';
 
 /** 접속 중 표시를 유지하고 상태를 맞추기 위해 이 간격으로 서버에 신호를 보낸다 */
 const HEARTBEAT_MS = 8000;
@@ -25,7 +26,14 @@ export interface Game {
   joinRoom: (p: { code: string; nickname: string; gender: Gender }) => Promise<boolean>;
   leave: () => void;
   updateSettings: (p: { mode?: Mode; questionCount?: number }) => void;
-  unlockPremium: (receipt: string) => Promise<boolean>;
+  /** 이 폰에 평생권이 있는지 */
+  lifetime: boolean;
+  /** 1회권 구매 → 이번 판 성별 공개 */
+  buyOneGame: () => Promise<boolean>;
+  /** 평생권 구매 → 지금 방부터 바로 적용 */
+  buyLifetime: () => Promise<boolean>;
+  /** 평생권 성별 공개 켜기/끄기 (평생권을 가진 사람만) */
+  setLifetimeOn: (on: boolean) => void;
   start: () => void;
   vote: (yes: boolean) => Promise<boolean>;
   forceReveal: () => void;
@@ -50,6 +58,16 @@ export function useGame(): Game {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [restoring, setRestoring] = useState(true);
+  const [lifetime, setLifetime] = useState(false);
+  const lifetimeRef = useRef(false);
+
+  useEffect(() => {
+    void purchases.hasLifetime().then((v) => {
+      lifetimeRef.current = v;
+      setLifetime(v);
+      if (v) void claimLifetime();
+    });
+  }, []);
 
   /** 같은 방의 더 오래된 상태가 늦게 도착하면 버린다 */
   const applyState = useCallback((s: RoomState | null) => {
@@ -121,6 +139,14 @@ export function useGame(): Game {
     return r.ok;
   };
 
+  /** 평생권이 있으면 지금 방에 알린다 (그 방의 혼성 게임은 자동으로 성별 공개) */
+  const claimLifetime = async () => {
+    const a = auth();
+    if (!a || !lifetimeRef.current) return;
+    const r = await rpc<RoomState>('tm_claim_lifetime', { ...a, p_receipt: purchases.LIFETIME_RECEIPT }, { silent: true });
+    if (r.ok) applyState(r.data);
+  };
+
   // 앱을 켤 때: 저장된 방이 있으면 그 방으로 바로 복귀
   useEffect(() => {
     let cancelled = false;
@@ -133,8 +159,10 @@ export function useGame(): Game {
           setPlayerId(saved.playerId);
           const r = await rpc<RoomState>('tm_sync', { p_player: saved.playerId, p_secret: saved.secret }, { silent: true });
           if (cancelled) return;
-          if (r.ok && sessionRef.current === saved) applyState(r.data);
-          else if (!r.ok && sessionRef.current === saved && !stateRef.current) {
+          if (r.ok && sessionRef.current === saved) {
+            applyState(r.data);
+            void claimLifetime();
+          } else if (!r.ok && sessionRef.current === saved && !stateRef.current) {
             // 인터넷이 없어 확인을 못 한 경우: 처음 화면으로 두되 저장은 지우지 않아 다음에 다시 시도
             sessionRef.current = null;
             setPlayerId(null);
@@ -188,6 +216,7 @@ export function useGame(): Game {
     setPlayerId(r.data.playerId);
     stateRef.current = null;
     applyState(r.data.state);
+    void claimLifetime();
     return true;
   };
 
@@ -217,7 +246,24 @@ export function useGame(): Game {
     },
     updateSettings: (p) =>
       void act('tm_update_settings', { p_mode: p.mode ?? null, p_question_count: p.questionCount ?? null }),
-    unlockPremium: (receipt) => act('tm_unlock_premium', { p_receipt: receipt }),
+    lifetime,
+    buyOneGame: async () => {
+      // 결제창을 띄우기 직전에 최신 상태를 확인: 이미 누가 열었거나 시간이 지났으면 결제하지 않는다
+      await sync();
+      if (stateRef.current?.purchase !== 'open') return false;
+      const receipt = await purchases.buyOneGame();
+      return receipt ? act('tm_unlock_premium', { p_receipt: receipt }) : false;
+    },
+    buyLifetime: async () => {
+      await sync();
+      if (stateRef.current?.purchase !== 'open') return false;
+      if (!(await purchases.buyLifetime())) return false;
+      lifetimeRef.current = true;
+      setLifetime(true);
+      const a = auth();
+      return a ? act('tm_claim_lifetime', { p_receipt: purchases.LIFETIME_RECEIPT }) : true;
+    },
+    setLifetimeOn: (on) => void act('tm_set_lifetime_on', { p_on: on }),
     start: () => void act('tm_start'),
     vote: (yes) => act('tm_vote', { p_yes: yes }),
     forceReveal: () => void act('tm_force_reveal'),

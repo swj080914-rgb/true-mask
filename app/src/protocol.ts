@@ -36,7 +36,16 @@ export interface RoomState {
   code: string;
   mode: Mode;
   questionCount: number;
+  /** 지금 결과에 남녀 인원이 보이는지 */
   premium: boolean;
+  /** 어떻게 켜졌는지 (누가 샀는지는 서버가 보내지 않는다) */
+  premiumBy: 'oneGame' | 'lifetime' | null;
+  /** 방에 평생권을 가진 사람이 있는지 */
+  lifetimeInRoom: boolean;
+  /** 평생권 성별 공개를 켜 뒀는지 (평생권을 가진 사람이 끌 수 있음) */
+  lifetimeOn: boolean;
+  /** 결제 칸: none 안 보임 / open 살 수 있음 / blocked 회색으로 막힘 / closed 시간 지남 */
+  purchase: 'none' | 'open' | 'blocked' | 'closed';
   phase: Phase;
   players: PublicPlayer[];
   questionIndex: number; // 0부터

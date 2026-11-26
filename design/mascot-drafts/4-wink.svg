@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="1024" height="1024">
+    <path d="M200 92 C200 70 206 56 214 46" stroke="#2B1A5E" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <path d="M212 50 C222 22 256 16 270 26 C258 50 236 60 212 50 Z" fill="#4ADE80" stroke="#2B1A5E" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M206 56 C192 34 164 32 154 42 C166 60 188 66 206 56 Z" fill="#4ADE80" stroke="#2B1A5E" stroke-width="8" stroke-linejoin="round"/>
+    <ellipse cx="160" cy="350" rx="28" ry="13" fill="#2B1A5E"/><ellipse cx="240" cy="350" rx="28" ry="13" fill="#2B1A5E"/>
+    <path d="M200 90 C290 90 336 166 334 244 C332 314 278 346 200 346 C122 346 68 314 66 244 C64 166 110 90 200 90 Z" fill="#FF8FB1" stroke="#2B1A5E" stroke-width="12"/>
+    <path d="M116 168 C126 136 150 116 174 112" stroke="#FFD1DF" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <ellipse cx="116" cy="280" rx="16" ry="9" fill="#FF6F8E" opacity="0.55"/><ellipse cx="284" cy="280" rx="16" ry="9" fill="#FF6F8E" opacity="0.55"/>
+    <path d="M298.94 212 q26 -4 40 -24 M298.94 220 q30 8 44 -2" stroke="#FFC83D" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <path d="M190 500 C190 370 300 330 405 352 C462 364 488 392 512 392 C536 392 562 364 619 352 C724 330 834 370 834 500 C834 616 754 668 662 656 C600 648 562 604 512 604 C462 604 424 648 362 656 C270 668 190 616 190 500 Z" transform="translate(200 218) scale(0.33) translate(-512 -500)" fill="#FFC83D" stroke="#2B1A5E" stroke-width="27.27272727272727" stroke-linejoin="round"/>
+    <ellipse cx="153.8" cy="220" rx="24" ry="18" fill="#fff"/><ellipse cx="155.8" cy="221" rx="11" ry="13" fill="#2B1A5E"/><circle cx="159.8" cy="216" r="4" fill="#fff"/><ellipse cx="246.2" cy="220" rx="24" ry="18" fill="#fff"/><path d="M232.2 225 Q246.2 208 260.2 225" stroke="#2B1A5E" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <path d="M185 266 Q200 292 215 266 Z" fill="#2B1A5E" stroke="#2B1A5E" stroke-width="5" stroke-linejoin="round"/><path d="M193 278 Q200 284 207 278" fill="#FF6F8E"/></svg>

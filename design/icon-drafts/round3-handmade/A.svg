@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><filter id="w" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="10" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="w2" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="22" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.28  0 0 0 0 0.2  0 0 0 0.35 0"/><feComposite in2="SourceGraphic" operator="in"/></filter></defs><rect width="1024" height="1024" fill="#FFF4D6"/>
+   <rect width="1024" height="1024" fill="#FFF4D6" filter="url(#g)"/>
+   <g filter="url(#w2)"><path d="M190 500 C190 370 300 330 405 352 C462 364 488 392 512 392 C536 392 562 364 619 352 C724 330 834 370 834 500 C834 616 754 668 662 656 C600 648 562 604 512 604 C462 604 424 648 362 656 C270 668 190 616 190 500 Z" transform="translate(26 22)" fill="#FFD23F"/></g>
+   <g filter="url(#w)" fill="none" stroke="#1B1530" stroke-linecap="round" stroke-linejoin="round">
+     <path d="M190 500 C190 370 300 330 405 352 C462 364 488 392 512 392 C536 392 562 364 619 352 C724 330 834 370 834 500 C834 616 754 668 662 656 C600 648 562 604 512 604 C462 604 424 648 362 656 C270 668 190 616 190 500 Z" stroke-width="28"/>
+     <ellipse cx="372" cy="500" rx="70" ry="46" stroke-width="24" fill="#1B1530"/>
+     <path d="M590 512 Q652 452 714 512" stroke-width="28"/>
+     <path d="M790 250 L815 200 M850 290 L905 268 M760 225 L762 170" stroke-width="18"/>
+     <path d="M240 760 q40 -30 80 0 t80 0 t80 0" stroke-width="16" stroke="#7C4DFF"/>
+   </g></svg>

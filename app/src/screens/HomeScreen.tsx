@@ -3,6 +3,7 @@ import { Animated, Platform, StyleSheet, Text, TextInput, View } from 'react-nat
 import type { Game } from '../useGame';
 import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Gender } from '../protocol';
 import { Button, C, Card, Character, DISPLAY_FONT, Label, ModeGuide, Segmented } from '../ui';
+import { Mascot } from '../Mascot';
 
 const QUESTION_OPTIONS = Array.from({ length: MAX_QUESTIONS - MIN_QUESTIONS + 1 }, (_, i) => {
   const n = MIN_QUESTIONS + i;
@@ -74,9 +75,7 @@ export function HomeScreen({ game }: { game: Game }) {
   return (
     <View style={s.wrap}>
       <View style={s.hero}>
-        <View style={s.logoRing}>
-          <Text style={s.logo}>🎭</Text>
-        </View>
+        <Mascot width={170} />
         <Text style={s.title} accessibilityRole="header">TRUE MASK</Text>
         <Text style={s.tagline}>가면을 쓰면, 진심이 나온다</Text>
         <Text style={s.taglineSub}>
@@ -158,14 +157,8 @@ export function HomeScreen({ game }: { game: Game }) {
 const s = StyleSheet.create({
   wrap: { gap: 16 },
   hero: { alignItems: 'center', paddingTop: 16, paddingBottom: 4 },
-  logoRing: {
-    width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.accentDim, borderWidth: 3, borderColor: C.accent,
-    shadowColor: C.accent, shadowOpacity: 0.8, shadowRadius: 24, shadowOffset: { width: 0, height: 0 },
-  },
-  logo: { fontSize: 54 },
   title: {
-    fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 54, marginTop: 14, letterSpacing: 1.5,
+    fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 54, marginTop: 2, letterSpacing: 1.5,
     textShadowColor: C.accentDark, textShadowOffset: { width: 0, height: 5 }, textShadowRadius: 0,
   },
   tagline: { color: C.text, fontSize: 22, fontWeight: '900', marginTop: 6, letterSpacing: -0.5 },
