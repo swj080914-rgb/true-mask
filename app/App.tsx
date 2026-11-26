@@ -1,8 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useFonts, LilitaOne_400Regular } from '@expo-google-fonts/lilita-one';
 import { useGame } from './src/useGame';
-import { C } from './src/ui';
+import { C, StarField } from './src/ui';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LobbyScreen } from './src/screens/LobbyScreen';
 import { GameScreen } from './src/screens/GameScreen';
@@ -10,12 +11,14 @@ import { FinishedScreen } from './src/screens/FinishedScreen';
 
 export default function App() {
   const game = useGame();
+  // 폰트가 늦게 오거나 실패해도 앱은 시스템 글꼴로 바로 뜬다
+  const [fontsLoaded, fontError] = useFonts({ LilitaOne_400Regular });
   const { state } = game;
   const isHost = !!state && state.players.some((p) => p.id === game.playerId && p.isHost);
 
   // 화면은 서버가 보내주는 방 상태(phase)를 그대로 따라간다
   let screen;
-  if (!state && game.restoring) screen = <ActivityIndicator color={C.accent} style={{ marginTop: 120 }} />;
+  if ((!fontsLoaded && !fontError) || (!state && game.restoring)) screen = <ActivityIndicator color={C.accent} style={{ marginTop: 120 }} />;
   else if (!state) screen = <HomeScreen game={game} />;
   else if (state.phase === 'lobby') screen = <LobbyScreen game={game} state={state} isHost={isHost} />;
   else if (state.phase === 'finished') screen = <FinishedScreen game={game} state={state} isHost={isHost} />;
@@ -24,6 +27,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={s.root}>
+        <StarField />
         <StatusBar style="light" />
         {state && !game.connected && (
           <View style={s.banner}>
@@ -50,10 +54,10 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   scroll: { flexGrow: 1, padding: 16, paddingBottom: 40 },
   inner: { width: '100%', maxWidth: 480, alignSelf: 'center' },
-  banner: { backgroundColor: C.accentDim, padding: 8 },
+  banner: { backgroundColor: C.accentDark, padding: 8 },
   bannerText: { color: C.text, textAlign: 'center', fontSize: 13 },
   toast: {
-    position: 'absolute', left: 16, right: 16, bottom: 24, backgroundColor: C.danger, borderRadius: 14,
+    position: 'absolute', left: 16, right: 16, bottom: 24, backgroundColor: C.danger, borderRadius: 16, borderBottomWidth: 4, borderBottomColor: C.noDark,
     padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   toastText: { color: '#fff', flex: 1, fontWeight: '600' },

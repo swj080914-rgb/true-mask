@@ -1,7 +1,7 @@
 import { Share, StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Mode, type RoomState } from '../protocol';
-import { Button, C, Card, Label, MODE_LABEL, Segmented } from '../ui';
+import { Button, C, Card, DISPLAY_FONT, Label, MaskAvatar, MODE_LABEL, ModeIcon, Segmented, avatarColor } from '../ui';
 import { PremiumCard } from './PremiumCard';
 
 export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
@@ -9,36 +9,56 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
   const canStart = online >= MIN_PLAYERS;
 
   const share = () =>
-    Share.share({ message: `트루 마스크 방에 들어와! 방 코드: ${state.code}` }).catch(() => {});
+    Share.share({ message: `TRUE MASK 방에 들어와! 🎭 방 코드: ${state.code}` }).catch(() => {});
 
   return (
     <View style={s.wrap}>
-      <Card style={{ alignItems: 'center' }}>
-        <Text style={s.codeLabel}>방 코드</Text>
+      <Card style={s.codeCard}>
+        <Text style={s.codeLabel}>ROOM CODE</Text>
         <Text testID="room-code" style={s.code} selectable>{state.code}</Text>
         <Text style={s.sub}>친구들에게 이 코드를 알려주세요</Text>
         <Button title="코드 공유하기" kind="secondary" onPress={share} style={{ marginTop: 14, alignSelf: 'stretch' }} />
       </Card>
 
       <Card>
-        <Label>참가자 {state.players.length}명</Label>
-        {state.players.map((p) => (
-          <View key={p.id} style={s.player}>
-            <View style={[s.dot, { backgroundColor: p.connected ? '#4ADE80' : C.sub }]} />
-            <Text style={s.name}>
-              {p.nickname}
-              {p.id === game.playerId ? ' (나)' : ''}
-            </Text>
-            {p.isHost && <Text style={s.host}>방장</Text>}
-          </View>
-        ))}
+        <View style={s.headRow}>
+          <Label>참가자</Label>
+          <Text style={s.count}>
+            <Text style={{ color: canStart ? C.yes : C.gold }}>{online}</Text>
+            <Text style={{ color: C.sub }}> / {MIN_PLAYERS}+</Text>
+          </Text>
+        </View>
+        <View style={s.grid}>
+          {state.players.map((p, i) => {
+            const me = p.id === game.playerId;
+            return (
+              <View key={p.id} style={s.player}>
+                {p.isHost && <Text style={s.crown}>👑</Text>}
+                <MaskAvatar color={avatarColor(i)} size={52} dim={!p.connected} />
+                <Text style={[s.name, me && { color: C.gold }]} numberOfLines={1}>
+                  {p.nickname}
+                </Text>
+                {me && <Text style={s.meTag}>나</Text>}
+              </View>
+            );
+          })}
+          {Array.from({ length: Math.max(0, MIN_PLAYERS - state.players.length) }, (_, i) => (
+            <View key={`empty-${i}`} style={s.player}>
+              <View style={s.emptySeat}><Text style={s.emptyQ}>?</Text></View>
+              <Text style={[s.name, { color: C.sub }]}>기다리는 중</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={s.hint}>🔒 이름은 여기서만 보여요. 투표 결과에는 나오지 않아요.</Text>
       </Card>
 
       <Card>
         <Label>모드</Label>
         <Segmented
           disabled={!isHost}
-          options={(['mixed', 'male', 'female'] as Mode[]).map((m) => ({ value: m, label: MODE_LABEL[m] }))}
+          options={(['mixed', 'male', 'female'] as Mode[]).map((m) => ({
+            value: m, label: MODE_LABEL[m], icon: <ModeIcon mode={m} />,
+          }))}
           value={state.mode}
           onChange={(mode) => game.updateSettings({ mode })}
         />
@@ -76,16 +96,28 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
 
 const s = StyleSheet.create({
   wrap: { gap: 16 },
-  codeLabel: { color: C.sub, fontSize: 13, fontWeight: '600' },
-  code: { color: C.text, fontSize: 48, fontWeight: '800', letterSpacing: 10, marginVertical: 6 },
-  sub: { color: C.sub, fontSize: 14 },
-  player: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  name: { color: C.text, fontSize: 16, flex: 1 },
-  host: {
-    color: C.gold, fontSize: 12, fontWeight: '700', borderWidth: 1, borderColor: C.gold,
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden',
+  codeCard: { alignItems: 'center', borderColor: C.accent },
+  codeLabel: { fontFamily: DISPLAY_FONT, color: C.sub, fontSize: 15, letterSpacing: 3 },
+  code: {
+    fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 56, letterSpacing: 10, marginVertical: 4,
+    textShadowColor: C.accentDark, textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 0,
   },
-  hint: { color: C.sub, fontSize: 12, marginTop: 8 },
+  sub: { color: C.sub, fontSize: 14 },
+  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  count: { fontFamily: DISPLAY_FONT, fontSize: 20 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 18, marginTop: 14 },
+  player: { width: '25%', alignItems: 'center', gap: 6 },
+  crown: { position: 'absolute', top: -14, zIndex: 1, fontSize: 18 },
+  name: { color: C.text, fontSize: 13, fontWeight: '800', maxWidth: '92%' },
+  meTag: {
+    color: '#2A1A00', backgroundColor: C.gold, fontSize: 10, fontWeight: '900', borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', marginTop: -2,
+  },
+  emptySeat: {
+    width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: C.cardBorder, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyQ: { fontFamily: DISPLAY_FONT, color: C.cardBorder, fontSize: 22 },
+  hint: { color: C.sub, fontSize: 12, marginTop: 14 },
   center: { color: C.sub, textAlign: 'center' },
 });

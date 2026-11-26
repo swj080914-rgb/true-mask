@@ -20,7 +20,7 @@ export function PremiumCard({ game, state, isHost }: { game: Game; state: RoomSt
     );
   }
   return (
-    <Card>
+    <Card style={s.card}>
       <Text style={s.title}>👑 성별 공개 (프리미엄)</Text>
       <Text style={s.body}>
         “예”를 누른 사람이 남자 몇 명, 여자 몇 명인지까지 알려줘요.{'\n'}
@@ -43,6 +43,7 @@ export function PremiumCard({ game, state, isHost }: { game: Game; state: RoomSt
 
 const s = StyleSheet.create({
   on: { borderColor: C.gold },
-  title: { color: C.gold, fontSize: 16, fontWeight: '800' },
+  card: { borderColor: C.goldDark, backgroundColor: '#2A1F3F' },
+  title: { color: C.gold, fontSize: 17, fontWeight: '900' },
   body: { color: C.sub, fontSize: 14, lineHeight: 20, marginTop: 6 },
 });

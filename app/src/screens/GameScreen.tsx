@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import { MIN_PLAYERS, type QuestionResult, type RoomState } from '../protocol';
-import { Button, C, Card } from '../ui';
+import { Button, C, Card, DISPLAY_FONT, MaskAvatar, avatarColor } from '../ui';
 
 /** 투표 중 화면 + 결과 공개 화면 */
 export function GameScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
@@ -14,7 +14,12 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
 
   return (
     <View style={s.wrap}>
-      <Text style={s.progress}>질문 {progress}</Text>
+      <View style={s.progressRow}>
+        {Array.from({ length: state.questionCount }, (_, i) => (
+          <View key={i} style={[s.pip, i < state.questionIndex && s.pipDone, i === state.questionIndex && s.pipNow]} />
+        ))}
+      </View>
+      <Text style={s.progress}>QUESTION {progress}</Text>
       <Card style={s.qCard}>
         <Text testID="question" style={s.question}>{state.currentQuestion}</Text>
       </Card>
@@ -28,18 +33,21 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
             </Card>
           ) : (
             <View style={s.voteRow}>
-              <Button testID="vote-yes" title="예" onPress={() => vote(true)} style={[s.voteBtn, { backgroundColor: C.yes }]} />
-              <Button testID="vote-no" title="아니오" onPress={() => vote(false)} style={[s.voteBtn, { backgroundColor: C.no }]} />
+              <Button testID="vote-yes" kind="yes" title="예" onPress={() => vote(true)} style={s.voteBtn} textStyle={s.voteText} />
+              <Button testID="vote-no" kind="no" title="아니오" onPress={() => vote(false)} style={s.voteBtn} textStyle={s.voteText} />
             </View>
           )}
+          <Text style={s.lock}>🔒 이름 없이 “예” 숫자만 공개돼요</Text>
           <Text testID="vote-progress" style={s.center}>
             {state.votedCount} / {state.voterCount}명 투표 완료
           </Text>
           <View style={s.chips}>
-            {state.players.map((p) => (
-              <Text key={p.id} style={[s.chip, p.hasVoted && s.chipOn, !p.connected && { opacity: 0.4 }]}>
-                {p.hasVoted ? '✓ ' : ''}{p.nickname}
-              </Text>
+            {state.players.map((p, i) => (
+              <View key={p.id} style={[s.chip, !p.connected && { opacity: 0.4 }]}>
+                <MaskAvatar color={avatarColor(i)} size={34} dim={!p.hasVoted} />
+                {p.hasVoted && <Text style={s.check}>✓</Text>}
+                <Text style={[s.chipName, p.hasVoted && { color: C.text }]} numberOfLines={1}>{p.nickname}</Text>
+              </View>
             ))}
           </View>
           {isHost && state.votedCount < state.voterCount && (
@@ -73,7 +81,8 @@ export function ResultView({ result, compact }: { result: QuestionResult; compac
     <Card style={compact ? undefined : { alignItems: 'center' }}>
       {compact && <Text style={s.histQ}>{result.question}</Text>}
       <Text testID="yes-count" style={compact ? s.bigCompact : s.big}>
-        <Text style={{ color: C.yes }}>{result.yes}명</Text>
+        <Text style={{ color: C.yes }}>{result.yes}</Text>
+        {!compact && <Text style={s.unit}>명</Text>}
         {compact && <Text style={s.ofTotal}> / {result.total}명</Text>}
       </Text>
       {!compact && <Text style={s.sub}>{result.total}명 중 “예”라고 답한 사람</Text>}
@@ -95,26 +104,34 @@ export function ResultView({ result, compact }: { result: QuestionResult; compac
 
 const s = StyleSheet.create({
   wrap: { gap: 16 },
-  progress: { color: C.accent, fontWeight: '700', fontSize: 14, textAlign: 'center', marginTop: 8 },
-  qCard: { minHeight: 180, justifyContent: 'center' },
-  question: { color: C.text, fontSize: 24, fontWeight: '800', textAlign: 'center', lineHeight: 34 },
+  progressRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  pip: { flex: 1, height: 8, borderRadius: 4, backgroundColor: C.cardBorder },
+  pipDone: { backgroundColor: C.accent },
+  pipNow: { backgroundColor: C.gold },
+  progress: { fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 16, letterSpacing: 2, textAlign: 'center' },
+  qCard: { minHeight: 200, justifyContent: 'center', borderColor: C.accent, borderBottomWidth: 6 },
+  question: { color: C.text, fontSize: 25, fontWeight: '900', textAlign: 'center', lineHeight: 36, letterSpacing: -0.5 },
   voteRow: { flexDirection: 'row', gap: 12 },
-  voteBtn: { flex: 1, minHeight: 72 },
-  voted: { color: C.text, fontSize: 18, fontWeight: '700' },
+  voteBtn: { flex: 1, minHeight: 84, borderRadius: 22 },
+  voteText: { fontSize: 24, fontWeight: '900' },
+  voted: { color: C.text, fontSize: 20, fontWeight: '900' },
+  lock: { color: C.sub, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   sub: { color: C.sub, fontSize: 14, textAlign: 'center', marginTop: 6 },
-  center: { color: C.sub, textAlign: 'center' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  chip: {
-    color: C.sub, backgroundColor: C.card, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6,
-    overflow: 'hidden', fontSize: 13,
+  center: { color: C.sub, textAlign: 'center', fontWeight: '600' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
+  chip: { alignItems: 'center', width: 56, gap: 4 },
+  chipName: { color: C.sub, fontSize: 11, fontWeight: '700', maxWidth: 56 },
+  check: {
+    position: 'absolute', right: 6, top: 22, color: '#03251A', backgroundColor: C.yes, fontSize: 10,
+    fontWeight: '900', width: 16, height: 16, borderRadius: 8, textAlign: 'center', lineHeight: 16, overflow: 'hidden',
   },
-  chipOn: { color: C.text, backgroundColor: C.accentDim },
-  big: { fontSize: 56, fontWeight: '900' },
-  bigCompact: { fontSize: 22, fontWeight: '800', marginTop: 6 },
-  ofTotal: { color: C.sub, fontSize: 22, fontWeight: '600' },
-  bar: { height: 10, backgroundColor: C.bg, borderRadius: 5, alignSelf: 'stretch', marginTop: 14, overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: C.yes, borderRadius: 5 },
+  big: { fontFamily: DISPLAY_FONT, fontSize: 88, lineHeight: 96 },
+  unit: { color: C.text, fontSize: 28, fontWeight: '900' },
+  bigCompact: { fontFamily: DISPLAY_FONT, fontSize: 28, marginTop: 6 },
+  ofTotal: { color: C.sub, fontSize: 18 },
+  bar: { height: 14, backgroundColor: C.inset, borderRadius: 7, alignSelf: 'stretch', marginTop: 14, overflow: 'hidden' },
+  barFill: { height: '100%', backgroundColor: C.yes, borderRadius: 7 },
   genderRow: { flexDirection: 'row', gap: 20, marginTop: 14, justifyContent: 'center' },
-  gender: { fontSize: 16, fontWeight: '800' },
-  histQ: { color: C.text, fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  gender: { fontSize: 16, fontWeight: '900' },
+  histQ: { color: C.text, fontSize: 15, fontWeight: '700', lineHeight: 21 },
 });
