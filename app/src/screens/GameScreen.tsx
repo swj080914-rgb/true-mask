@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import type { QuestionResult, RoomState } from '../protocol';
 import { Button, C, Card, Character, DISPLAY_FONT, MODE_LABEL, ModeIcon } from '../ui';
 import { PremiumCard } from './PremiumCard';
+import { Reveal } from './Reveal';
 
 /** 투표 중 화면 + 결과 공개 화면 */
 export function GameScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
@@ -61,17 +63,33 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
         </>
       ) : (
         state.lastResult && (
-          <>
-            <ResultView result={state.lastResult} />
-            {isHost ? (
-              <Button testID="next" title={isLast ? '최종 결과 보기' : '다음 질문'} onPress={game.next} loading={game.busy} />
-            ) : (
-              <Text style={s.center}>방장이 다음으로 넘기길 기다리는 중…</Text>
-            )}
-          </>
+          // key: 질문마다 연출을 처음부터 다시
+          <ResultStage
+            key={state.questionIndex}
+            result={state.lastResult}
+            footer={
+              isHost ? (
+                <Button testID="next" title={isLast ? '최종 결과 보기' : '다음 질문'} onPress={game.next} loading={game.busy} />
+              ) : (
+                <Text style={s.center}>방장이 다음으로 넘기길 기다리는 중…</Text>
+              )
+            }
+          />
         )
       )}
     </View>
+  );
+}
+
+/** 뜸 들이기 → 숫자 올라가기 → 최종 결과 + 다음 버튼 */
+function ResultStage({ result, footer }: { result: QuestionResult; footer: React.ReactNode }) {
+  const [revealed, setRevealed] = useState(false);
+  if (!revealed) return <Reveal result={result} onDone={() => setRevealed(true)} />;
+  return (
+    <>
+      <ResultView result={result} />
+      {footer}
+    </>
   );
 }
 
