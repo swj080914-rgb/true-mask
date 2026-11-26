@@ -32,6 +32,7 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
       <Card style={s.qCard}>
         <Text testID="question" style={s.question}>{state.currentQuestion}</Text>
       </Card>
+      <PremiumCard game={game} state={state} />
 
       {state.phase === 'voting' ? (
         <>
@@ -62,7 +63,6 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
         state.lastResult && (
           <>
             <ResultView result={state.lastResult} />
-            <PremiumCard game={game} state={state} />
             {isHost ? (
               <Button testID="next" title={isLast ? '최종 결과 보기' : '다음 질문'} onPress={game.next} loading={game.busy} />
             ) : (

@@ -32,6 +32,8 @@ export interface Game {
   buyOneGame: () => Promise<boolean>;
   /** 평생권 구매 → 지금 방부터 바로 적용 */
   buyLifetime: () => Promise<boolean>;
+  /** 평생권 성별 공개 켜기/끄기 (평생권을 가진 사람만) */
+  setLifetimeOn: (on: boolean) => void;
   start: () => void;
   vote: (yes: boolean) => Promise<boolean>;
   forceReveal: () => void;
@@ -246,16 +248,22 @@ export function useGame(): Game {
       void act('tm_update_settings', { p_mode: p.mode ?? null, p_question_count: p.questionCount ?? null }),
     lifetime,
     buyOneGame: async () => {
+      // 결제창을 띄우기 직전에 최신 상태를 확인: 이미 누가 열었거나 시간이 지났으면 결제하지 않는다
+      await sync();
+      if (stateRef.current?.purchase !== 'open') return false;
       const receipt = await purchases.buyOneGame();
       return receipt ? act('tm_unlock_premium', { p_receipt: receipt }) : false;
     },
     buyLifetime: async () => {
+      await sync();
+      if (stateRef.current?.purchase !== 'open') return false;
       if (!(await purchases.buyLifetime())) return false;
       lifetimeRef.current = true;
       setLifetime(true);
       const a = auth();
       return a ? act('tm_claim_lifetime', { p_receipt: purchases.LIFETIME_RECEIPT }) : true;
     },
+    setLifetimeOn: (on) => void act('tm_set_lifetime_on', { p_on: on }),
     start: () => void act('tm_start'),
     vote: (yes) => act('tm_vote', { p_yes: yes }),
     forceReveal: () => void act('tm_force_reveal'),
