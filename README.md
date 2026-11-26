@@ -89,6 +89,18 @@ cd supabase && npm install && DATABASE_URL=postgres://postgres@localhost:5432/po
   2. 영수증과 평생권을 RevenueCat으로 검증하고 secret 키로 방을 여는 Supabase Edge Function을 만듭니다.
   3. `truemask.config` 테이블의 `allow_mock_premium`을 `false`로 바꿉니다.
 
+## 마스코트 · 아이콘 · 로딩 화면
+
+마스코트는 눈웃음 짓는 흰 가면입니다. 그림은 `app/src/mascotArt.ts` **한 곳**에만 있고, 앱 화면과 아이콘 PNG가 모두 이걸 씁니다.
+
+- 첫 화면: 가면이 둥실 떠 있고 가끔 깜빡이거나 윙크합니다 (`app/src/Mascot.tsx`). 폰의 “동작 줄이기”가 켜져 있으면 멈춥니다.
+- 로딩 화면: 폰이 띄우는 정지 그림(스플래시)이 사라지면 같은 자리에서 가면이 윙크하고 첫 화면으로 넘어갑니다 (`app/src/Intro.tsx`).
+- 그림을 고친 뒤 아이콘을 다시 만들려면 저장소 루트에서:
+
+```bash
+node --experimental-strip-types design/export-icons.ts
+```
+
 ## 질문 추가·수정
 
 Supabase 대시보드 → Table Editor → 스키마 `truemask` → `questions` 테이블에서 추가·수정합니다. `mode`는 `common`(모든 모드), `mixed`, `male`, `female` 중 하나이고, `enabled`를 끄면 숨겨집니다. 앱을 다시 배포할 필요가 없습니다.
@@ -96,7 +108,7 @@ Supabase 대시보드 → Table Editor → 스키마 `truemask` → `questions` 
 ## 출시까지 남은 일
 
 - [ ] 인앱결제 연동 (RevenueCat) + Edge Function 영수증 검증
-- [ ] 마스코트 캐릭터 확정 → 앱 아이콘, 스플래시(로딩 화면), 첫 화면 캐릭터 (`design/mascot-drafts`)
+- [x] 마스코트(웃는 흰 가면) → 앱 아이콘, 로딩 화면, 첫 화면
 - [ ] 개인정보처리방침 페이지 (성별 정보를 받으므로 스토어 심사에 필요)
 - [ ] `eas build` → `eas submit`으로 스토어 제출
 - [ ] 방 만들기 남용 방지 (공개키로 누구나 함수를 부를 수 있으므로, 사용자가 늘면 요청 제한 추가)
