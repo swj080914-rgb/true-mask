@@ -4,7 +4,7 @@ import Svg, { Circle, Ellipse, G, Path } from 'react-native-svg';
 /**
  * 트루 마스크 캐릭터. 모두 눈가면을 쓰고 있다.
  * - male / female: 성별 선택·모드 그림에만 쓴다 (파랑 / 분홍)
- * - anon: 후드를 깊게 쓴 익명 캐릭터. 대기실·투표 화면에서 참가자를 나타낸다 (성별을 알 수 없음)
+ * - anon: 가면 쓴 말랑이. 대기실·투표 화면에서 참가자를 나타낸다 (성별을 알 수 없음)
  */
 
 const SKIN = '#FFD9B8';
@@ -78,17 +78,20 @@ function Female({ color }: { color: string }) {
   );
 }
 
+/** 말랑한 동그라미에 눈구멍 없는 파티 가면. 누구인지 알 수 없지만 무섭지 않게 */
 function Anon({ color }: { color: string }) {
   return (
     <G>
-      <Path d="M12 100 C12 76 29 64 50 64 C71 64 88 76 88 100 Z" fill={color} />
-      <Path d="M50 70 V100" stroke="rgba(0,0,0,0.2)" strokeWidth={2} />
-      {/* 후드 */}
-      <Path d="M22 54 C18 26 33 12 50 12 C67 12 82 26 78 54 C76 66 66 72 50 72 C34 72 24 66 22 54 Z" fill={color} />
-      <Path d="M30 20 C36 15 43 13 50 13" stroke="rgba(255,255,255,0.35)" strokeWidth={2.5} fill="none" strokeLinecap="round" />
-      {/* 그림자 진 얼굴 */}
-      <Ellipse cx={50} cy={47} rx={18} ry={20} fill="#140C2A" />
-      <Mask trim={color} y={46} />
+      <Ellipse cx={50} cy={64} rx={36} ry={32} fill={color} />
+      <Ellipse cx={35} cy={46} rx={9} ry={5} fill="#fff" opacity={0.35} />
+      <Path
+        d="M20 58 C20 47 36 46 50 52 C64 46 80 47 80 58 C80 68 66 70 58 65 C54 62 46 62 42 65 C34 70 20 68 20 58 Z"
+        fill="#fff"
+      />
+      <Path d="M27 55 C31 51 37 51 41 53" stroke="rgba(0,0,0,0.12)" strokeWidth={3} fill="none" strokeLinecap="round" />
+      <Ellipse cx={28} cy={72} rx={5} ry={3} fill="#FF9FB8" opacity={0.7} />
+      <Ellipse cx={72} cy={72} rx={5} ry={3} fill="#FF9FB8" opacity={0.7} />
+      <Path d="M44 75 Q50 81 56 75" stroke="#2A1A3E" strokeWidth={3} fill="none" strokeLinecap="round" />
     </G>
   );
 }

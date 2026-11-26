@@ -1,7 +1,7 @@
 import { Share, StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type RoomState } from '../protocol';
-import { Button, C, Card, Character, DISPLAY_FONT, Label, ModeGuide, Segmented, avatarColor } from '../ui';
+import { Button, C, Card, Character, DISPLAY_FONT, Label, Segmented, avatarColor } from '../ui';
 import { PremiumCard } from './PremiumCard';
 
 export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
@@ -49,7 +49,6 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
             </View>
           ))}
         </View>
-        <Text style={s.hint}>🔒 이름은 여기서만 보여요. 투표 결과에는 나오지 않아요.</Text>
       </Card>
 
       <Card>
@@ -64,14 +63,6 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
           onChange={(questionCount) => game.updateSettings({ questionCount })}
         />
         {!isHost && <Text style={s.hint}>설정은 방장만 바꿀 수 있어요.</Text>}
-      </Card>
-
-      <Card>
-        <Label>모드는 자동으로 정해져요</Label>
-        <ModeGuide />
-        <Text style={s.hint}>
-          게임을 시작하는 순간 참가자 성별을 보고 질문 종류가 정해져요. 누가 들어올 때마다 바뀌어 보이면 그 사람 성별이 드러나서, 미리 보여주지 않아요.
-        </Text>
       </Card>
 
       <PremiumCard game={game} state={state} isHost={isHost} />

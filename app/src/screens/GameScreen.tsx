@@ -38,7 +38,6 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
             <Card style={{ alignItems: 'center' }}>
               <Character kind="anon" color={C.accent} size={64} bg={C.inset} ring={C.gold} />
               <Text testID="voted" style={s.voted}>투표 완료</Text>
-              <Text style={s.sub}>내가 뭘 골랐는지는 어디에도 남지 않아요.</Text>
             </Card>
           ) : (
             <View style={s.voteRow}>
@@ -46,7 +45,6 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
               <Button testID="vote-no" kind="no" title="아니오" onPress={() => vote(false)} style={s.voteBtn} textStyle={s.voteText} />
             </View>
           )}
-          <Text style={s.lock}>🔒 이름 없이 “예” 숫자만 공개돼요</Text>
           <Text testID="vote-progress" style={s.center}>
             {state.votedCount} / {state.voterCount}명 투표 완료
           </Text>

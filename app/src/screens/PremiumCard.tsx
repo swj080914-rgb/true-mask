@@ -15,7 +15,7 @@ export function PremiumCard({ game, state, isHost }: { game: Game; state: RoomSt
     return (
       <Card style={s.on}>
         <Text style={s.title}>👑 성별 공개 켜짐</Text>
-        <Text style={s.body}>결과에 Yes를 누른 남자/여자 인원이 함께 표시돼요.</Text>
+        <Text style={s.body}>결과에 남자·여자 인원이 함께 나와요.</Text>
       </Card>
     );
   }
@@ -23,8 +23,7 @@ export function PremiumCard({ game, state, isHost }: { game: Game; state: RoomSt
     <Card style={s.card}>
       <Text style={s.title}>👑 성별 공개 (프리미엄)</Text>
       <Text style={s.body}>
-        “예”를 누른 사람이 남자 몇 명, 여자 몇 명인지까지 알려줘요.{'\n'}
-        참가자가 혼성일 때만 적용되고, 한 성별이 1명뿐이면 그 사람 답이 드러나기 때문에 성별을 숨겨요.
+        “예”를 누른 사람 중 남자·여자가 몇 명인지 보여줘요.
       </Text>
       {isHost ? (
         <Button

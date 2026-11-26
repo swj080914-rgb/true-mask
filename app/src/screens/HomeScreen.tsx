@@ -96,13 +96,7 @@ export function HomeScreen({ game }: { game: Game }) {
           maxLength={12}
           style={s.input}
         />
-        <View style={s.notice}>
-          <Text style={s.noticeIcon}>🔒</Text>
-          <Text style={s.noticeText}>
-            닉네임은 대기실에서 누가 왔는지 확인할 때만 보여요.{'\n'}
-            <Text style={s.noticeStrong}>투표가 시작되면 누가 뭘 골랐는지 이름은 절대 나오지 않아요.</Text>
-          </Text>
-        </View>
+        <Text style={[s.hint, { marginTop: 0, marginBottom: 12 }]}>🔒 투표 결과엔 이름이 나오지 않아요.</Text>
 
         <Label>성별</Label>
         <Segmented
@@ -113,12 +107,10 @@ export function HomeScreen({ game }: { game: Game }) {
           value={gender}
           onChange={setGender}
         />
-        <Text style={s.why}>왜 성별을 고르나요?</Text>
-        <Text style={s.whyBody}>
-          모드를 따로 고를 필요 없이, 방에 모인 사람들의 성별을 보고 <Text style={s.noticeStrong}>게임을 시작할 때 앱이 알아서 질문을 골라요.</Text>
-        </Text>
-        <ModeGuide />
-        <Text style={s.hint}>🔒 내 성별은 다른 사람에게 표시되지 않아요.</Text>
+        <View style={{ marginTop: 12 }}>
+          <ModeGuide />
+        </View>
+        <Text style={s.hint}>🔒 성별은 다른 사람에게 보이지 않아요.</Text>
       </Card>
 
       <Card style={{ gap: 4 }}>
@@ -192,15 +184,6 @@ const s = StyleSheet.create({
     borderWidth: 2, borderColor: C.cardBorder, paddingHorizontal: 14, minHeight: 52, marginBottom: 10,
   },
   codeInput: { fontFamily: DISPLAY_FONT, fontSize: 32, letterSpacing: 10, textAlign: 'center', fontWeight: '400' },
-  notice: {
-    flexDirection: 'row', gap: 8, backgroundColor: 'rgba(124,77,255,0.14)', borderRadius: 14,
-    padding: 12, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(124,77,255,0.4)',
-  },
-  noticeIcon: { fontSize: 16 },
-  noticeText: { color: C.sub, fontSize: 13, lineHeight: 19, flex: 1 },
-  noticeStrong: { color: C.text, fontWeight: '800' },
   hint: { color: C.sub, fontSize: 12, marginTop: 10 },
-  why: { color: C.text, fontSize: 14, fontWeight: '900', marginTop: 16 },
-  whyBody: { color: C.sub, fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 10 },
   offline: { color: C.sub, textAlign: 'center' },
 });
