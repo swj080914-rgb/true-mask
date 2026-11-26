@@ -39,6 +39,7 @@ async function asAnon(sql: string) {
 
 type P = { id: string; secret: string; name: string };
 const auth = (p: P) => ({ p_player: p.id, p_secret: p.secret });
+const receipt = () => `mock-receipt:${crypto.randomUUID()}`;
 
 async function room(genders: ('M' | 'F')[], mode = 'mixed', count = 5) {
   const created = await rpc('tm_create_room', {
@@ -67,7 +68,7 @@ afterAll(async () => {
 
 describe('권한 (익명성의 핵심)', () => {
   it('앱(anon)은 투표·참가자·방 테이블을 직접 읽을 수 없다', async () => {
-    for (const t of ['votes', 'players', 'rooms', 'results', 'questions']) {
+    for (const t of ['votes', 'players', 'rooms', 'results', 'questions', 'premium_receipts']) {
       await expect(asAnon(`select * from truemask.${t}`)).rejects.toThrow(/permission denied/);
     }
   });
@@ -138,20 +139,85 @@ describe('게임 진행', () => {
     await expect(rpc('tm_vote', { ...auth(players[0]), p_yes: false })).rejects.toThrow(/이미/);
   });
 
-  it('프리미엄은 영수증 확인 후 성별 Yes 수를 보여준다', async () => {
+  it('1회권: 게임 시작 후 혼성일 때 참가자 누구나 열 수 있고, 성별 Yes 수를 보여준다', async () => {
     const { players } = await room(['M', 'F', 'M', 'F']);
-    await expect(rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: 'fake' })).rejects.toThrow(/결제/);
-    await expect(rpc('tm_unlock_premium', { ...auth(players[1]), p_receipt: 'mock-receipt' })).rejects.toThrow(/방장/);
-    expect((await rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: 'mock-receipt' })).premium).toBe(true);
+    const r = receipt();
+    await expect(rpc('tm_unlock_premium', { ...auth(players[1]), p_receipt: r })).rejects.toThrow(/시작된 뒤/);
     await rpc('tm_start', auth(players[0]));
+    await expect(rpc('tm_unlock_premium', { ...auth(players[1]), p_receipt: 'fake' })).rejects.toThrow(/결제/);
+    expect((await rpc('tm_unlock_premium', { ...auth(players[1]), p_receipt: r })).premium).toBe(true); // 방장 아니어도 됨
     const s = await voteAll(players, [true, true, false, true]); // M:1, F:2
     expect(s.lastResult.genderBreakdown).toEqual({ M: 1, F: 2 });
   });
 
-  it('한 성별이 1명뿐이면 성별 내역을 숨긴다', async () => {
-    const { players } = await room(['M', 'M', 'M', 'F']);
-    await rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: 'mock-receipt' });
+  it('결제 전에는 성별 인원이 안 나오고, 중간에 결제하면 지나간 질문까지 보인다', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
     await rpc('tm_start', auth(players[0]));
+    let s = await voteAll(players, [true, true, false, true]);
+    expect(s.lastResult.genderBreakdown).toBeUndefined();
+    expect(s.lastResult.genderHidden).toBeUndefined();
+    s = await rpc('tm_unlock_premium', { ...auth(players[2]), p_receipt: receipt() });
+    expect(s.lastResult.genderBreakdown).toEqual({ M: 1, F: 2 });
+    await rpc('tm_next', auth(players[0]));
+    for (let i = 1; i < 5; i++) {
+      await voteAll(players, [false, false, false, false]);
+      s = await rpc('tm_next', auth(players[0]));
+    }
+    expect(s.phase).toBe('finished');
+    expect(s.history[0].genderBreakdown).toEqual({ M: 1, F: 2 });
+  });
+
+  it('같은 1회권 영수증은 다시 쓸 수 없고, 이미 켜진 방에서는 영수증을 쓰지 않는다', async () => {
+    const a = await room(['M', 'F', 'M', 'F']);
+    const b = await room(['M', 'F', 'M', 'F']);
+    await rpc('tm_start', auth(a.players[0]));
+    await rpc('tm_start', auth(b.players[0]));
+    const r = receipt();
+    await rpc('tm_unlock_premium', { ...auth(a.players[0]), p_receipt: r });
+    await expect(rpc('tm_unlock_premium', { ...auth(b.players[0]), p_receipt: r })).rejects.toThrow(/이미 사용/);
+    const r2 = receipt();
+    await rpc('tm_unlock_premium', { ...auth(a.players[1]), p_receipt: r2 }); // 이미 켜짐 → 영수증 안 씀
+    expect((await rpc('tm_unlock_premium', { ...auth(b.players[0]), p_receipt: r2 })).premium).toBe(true);
+  });
+
+  it('1회권은 이번 판만: 다시 하기를 누르면 꺼진다', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
+    await rpc('tm_start', auth(players[0]));
+    await rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: receipt() });
+    expect((await rpc('tm_restart', auth(players[0]))).premium).toBe(false);
+    expect((await rpc('tm_start', auth(players[0]))).premium).toBe(false);
+  });
+
+  it('평생권: 가진 사람이 참가하면 혼성 게임은 자동으로 성별 공개', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
+    await expect(rpc('tm_claim_lifetime', { ...auth(players[3]), p_receipt: 'fake' })).rejects.toThrow(/평생권/);
+    expect((await rpc('tm_claim_lifetime', { ...auth(players[3]), p_receipt: 'mock-lifetime' })).premium).toBe(false); // 대기실에선 아직
+    expect((await rpc('tm_start', auth(players[0]))).premium).toBe(true);
+    // 다시 해도 평생권이니 계속 켜짐
+    await rpc('tm_restart', auth(players[0]));
+    expect((await rpc('tm_start', auth(players[0]))).premium).toBe(true);
+  });
+
+  it('평생권을 게임 중에 사면 바로 켜진다', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
+    await rpc('tm_start', auth(players[0]));
+    expect((await rpc('tm_claim_lifetime', { ...auth(players[1]), p_receipt: 'mock-lifetime' })).premium).toBe(true);
+  });
+
+  it('혼성이 아니면 결제를 받지 않고, 평생권이 있어도 켜지지 않는다', async () => {
+    const { players } = await room(['M', 'M', 'M', 'M']);
+    await rpc('tm_claim_lifetime', { ...auth(players[1]), p_receipt: 'mock-lifetime' });
+    expect((await rpc('tm_start', auth(players[0]))).premium).toBe(false);
+    await expect(rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: receipt() })).rejects.toThrow(/섞여/);
+    const s = await voteAll(players, [true, true, false, false]);
+    expect(s.lastResult.genderBreakdown).toBeUndefined();
+    expect(s.lastResult.genderHidden).toBeUndefined();
+  });
+
+  it('한 성별이 1명뿐이면 결제해도 성별 내역을 숨긴다', async () => {
+    const { players } = await room(['M', 'M', 'M', 'F']);
+    await rpc('tm_start', auth(players[0]));
+    await rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: receipt() });
     const s = await voteAll(players, [true, true, true, true]);
     expect(s.lastResult.genderBreakdown).toBeUndefined();
     expect(s.lastResult.genderHidden).toBe(true);
@@ -195,15 +261,6 @@ describe('게임 진행', () => {
     const s = await pick(['M', 'M', 'M'], 'mixed');
     const { rows } = await db.query(`select body from truemask.questions where mode in ('male','common')`);
     expect(new Set(rows.map((r) => r.body)).has(s.currentQuestion)).toBe(true);
-  });
-
-  it('성별 공개는 혼성일 때만 표시된다', async () => {
-    const { players } = await room(['M', 'M', 'M', 'M']);
-    await rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: 'mock-receipt' });
-    await rpc('tm_start', auth(players[0]));
-    const s = await voteAll(players, [true, true, false, false]);
-    expect(s.lastResult.genderBreakdown).toBeUndefined();
-    expect(s.lastResult.genderHidden).toBeUndefined();
   });
 
   it('설정은 방장만, 질문 수는 5~8로 제한', async () => {

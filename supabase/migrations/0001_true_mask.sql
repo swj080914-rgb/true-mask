@@ -44,6 +44,8 @@ create table if not exists truemask.players (
   unique (room_id, nickname)
 );
 create index if not exists players_room_idx on truemask.players (room_id);
+-- 평생권(성별 공개 영구 해제)을 가진 참가자. 이 사람이 있는 혼성 게임은 자동으로 성별 공개가 켜진다.
+alter table truemask.players add column if not exists lifetime boolean not null default false;
 
 -- 개별 투표. 결과 공개 순간 삭제되며, 어떤 API 로도 조회할 수 없다.
 create table if not exists truemask.votes (
@@ -89,6 +91,13 @@ create table if not exists truemask.config (
 -- 출시 전에는 'false' 로 바꾸고 실제 결제 검증(Edge Function)을 붙이세요.
 insert into truemask.config values ('allow_mock_premium', 'true') on conflict do nothing;
 
+-- 한 번 쓴 1회권 결제 영수증. 같은 영수증으로 여러 방을 여는 것을 막는다 (방이 지워져도 남김).
+create table if not exists truemask.premium_receipts (
+  receipt text primary key,
+  room_id uuid,
+  used_at timestamptz not null default now()
+);
+
 -- 앱이 Realtime 으로 구독하는 유일한 테이블. 방 id 와 버전 숫자만 있다.
 create table if not exists public.tm_room_signals (
   room_id uuid primary key references truemask.rooms (id) on delete cascade,
@@ -106,6 +115,7 @@ alter table truemask.results enable row level security;
 alter table truemask.questions enable row level security;
 alter table truemask.config enable row level security;
 alter table truemask.rate_events enable row level security;
+alter table truemask.premium_receipts enable row level security;
 alter table public.tm_room_signals enable row level security;
 
 revoke all on all tables in schema truemask from public, anon, authenticated;
@@ -241,7 +251,8 @@ create or replace function truemask.reset_lobby(p_room uuid) returns void
 language plpgsql set search_path = truemask, pg_temp
 as $$
 begin
-  update rooms set phase = 'lobby', questions = '{}', question_index = 0 where id = p_room;
+  -- 1회권은 "이번 판"에만 적용되므로 새 판을 위해 대기실로 돌아가면 꺼진다
+  update rooms set phase = 'lobby', questions = '{}', question_index = 0, premium = false where id = p_room;
   delete from votes where room_id = p_room;
   delete from results where room_id = p_room;
   update players set is_voter = false where room_id = p_room;
@@ -278,15 +289,17 @@ begin
   from votes v join players p on p.id = v.player_id
   where v.room_id = p_room;
 
-  -- 한 성별 투표자가 1명뿐이면 성별 내역이 그 사람 답을 드러내므로 숨긴다
+  -- 한 성별 투표자가 1명뿐이면 성별 내역이 그 사람 답을 드러내므로 숨긴다.
+  -- 성별 인원은 혼성이면 결제와 상관없이 저장해 두고, 앱에 보낼 때(state) 결제 여부로 가린다.
+  -- 그래야 게임 중간에 결제해도 지나간 질문의 성별 인원까지 볼 수 있다.
   safe := (c.n_m = 0 or c.n_m >= 2) and (c.n_f = 0 or c.n_f >= 2);
 
   insert into results (room_id, idx, question, yes, total, male_yes, female_yes, gender_hidden)
   values (
     p_room, r.question_index, r.questions[r.question_index + 1], c.yes, c.total,
-    case when r.premium and r.mode = 'mixed' and safe then c.y_m end,
-    case when r.premium and r.mode = 'mixed' and safe then c.y_f end,
-    r.premium and r.mode = 'mixed' and not safe
+    case when r.mode = 'mixed' and safe then c.y_m end,
+    case when r.mode = 'mixed' and safe then c.y_f end,
+    r.mode = 'mixed' and not safe
   )
   on conflict (room_id, idx) do update set
     question = excluded.question, yes = excluded.yes, total = excluded.total,
@@ -392,14 +405,17 @@ begin
   return r;
 end $$;
 
-create or replace function truemask.result_json(x truemask.results) returns jsonb
+drop function if exists truemask.result_json(truemask.results);
+-- p_premium 이 아니면 성별 인원은 절대 내보내지 않는다
+create or replace function truemask.result_json(x truemask.results, p_premium boolean) returns jsonb
 language sql stable set search_path = truemask, pg_temp
 as $$
   select jsonb_build_object('question', x.question, 'yes', x.yes, 'total', x.total)
-    || case when x.male_yes is not null
+    || case when not p_premium then '{}'::jsonb
+         when x.male_yes is not null
          then jsonb_build_object('genderBreakdown', jsonb_build_object('M', x.male_yes, 'F', x.female_yes))
          else '{}'::jsonb end
-    || case when x.gender_hidden then jsonb_build_object('genderHidden', true) else '{}'::jsonb end
+    || case when p_premium and x.gender_hidden then jsonb_build_object('genderHidden', true) else '{}'::jsonb end
 $$;
 
 -- 앱으로 보내는 방 상태. 개별 투표 내용과 성별은 절대 포함하지 않는다.
@@ -429,10 +445,10 @@ as $$
     'votedCount', (select count(*) from votes v where v.room_id = r.id),
     'voterCount', (select count(*) from players p where p.room_id = r.id and p.is_voter),
     'lastResult', case when r.phase in ('reveal', 'finished') then (
-      select result_json(x) from results x where x.room_id = r.id and x.idx = r.question_index
+      select result_json(x, r.premium) from results x where x.room_id = r.id and x.idx = r.question_index
     ) end,
     'history', case when r.phase = 'finished' then coalesce((
-      select jsonb_agg(result_json(x) order by x.idx) from results x where x.room_id = r.id
+      select jsonb_agg(result_json(x, r.premium) order by x.idx) from results x where x.room_id = r.id
     ), '[]'::jsonb) else '[]'::jsonb end
   )
   from rooms r where r.id = p_room
@@ -561,19 +577,54 @@ begin
   return state(r.id);
 end $$;
 
+-- 1회권: 이번 판의 성별 공개를 켠다. 참가자 누구나 살 수 있다.
+-- 혼성인지는 게임을 시작해야 정해지므로, 시작 후 혼성일 때만 받는다 (헛돈 방지).
+-- TODO(출시): 인앱결제 영수증은 Edge Function 에서 검증하고 서비스 키로 premium 을 켜도록 교체
 create or replace function public.tm_unlock_premium(p_player uuid, p_secret uuid, p_receipt text) returns jsonb
 language plpgsql security definer set search_path = truemask, pg_temp
 as $$
 declare
   p players := enter(p_player, p_secret);
-  r rooms := assert_host(p);
+  r rooms;
 begin
-  -- TODO(출시): 인앱결제 영수증은 Edge Function 에서 검증하고 서비스 키로 premium 을 켜도록 교체
-  if not ((select value from config where key = 'allow_mock_premium') = 'true' and p_receipt = 'mock-receipt') then
+  select * into r from rooms where id = p.room_id;
+  if r.phase = 'lobby' then perform fail('게임이 시작된 뒤에 열 수 있어요.'); end if;
+  if r.mode <> 'mixed' then perform fail('남녀가 섞여 있을 때만 쓸 수 있어요.'); end if;
+  if r.premium then return state(r.id); end if; -- 이미 켜져 있으면 영수증을 쓰지 않는다
+  if not ((select value from config where key = 'allow_mock_premium') = 'true'
+          and coalesce(p_receipt, '') like 'mock-receipt:%') then
     perform fail('결제를 확인하지 못했어요.');
   end if;
+  if exists (select 1 from premium_receipts where receipt = p_receipt) then
+    perform fail('이미 사용한 결제예요.');
+  end if;
+  insert into premium_receipts (receipt, room_id) values (p_receipt, r.id);
   update rooms set premium = true where id = r.id;
   perform bump(r.id);
+  return state(r.id);
+end $$;
+
+-- 평생권: 이 참가자가 평생권을 가졌다고 등록한다. 이 사람이 있는 혼성 게임은 자동으로 성별 공개.
+-- 앱은 방에 들어갈 때마다(만들기·입장·복귀) 그리고 평생권을 산 직후에 부른다.
+-- TODO(출시): 영수증 대신 RevenueCat 고객 ID를 Edge Function 에서 확인하도록 교체
+create or replace function public.tm_claim_lifetime(p_player uuid, p_secret uuid, p_receipt text) returns jsonb
+language plpgsql security definer set search_path = truemask, pg_temp
+as $$
+declare
+  p players := enter(p_player, p_secret);
+  r rooms;
+begin
+  if not ((select value from config where key = 'allow_mock_premium') = 'true' and p_receipt = 'mock-lifetime') then
+    perform fail('평생권을 확인하지 못했어요.');
+  end if;
+  select * into r from rooms where id = p.room_id;
+  if not p.lifetime then
+    update players set lifetime = true where id = p.id;
+  end if;
+  if r.phase <> 'lobby' and r.mode = 'mixed' and not r.premium then
+    update rooms set premium = true where id = r.id;
+    perform bump(r.id);
+  end if;
   return state(r.id);
 end $$;
 
@@ -600,6 +651,8 @@ begin
     from players where room_id = r.id;
   update rooms set
     mode = v_mode,
+    -- 평생권을 가진 사람이 있으면 혼성 게임은 처음부터 성별 공개
+    premium = v_mode = 'mixed' and exists (select 1 from players where room_id = r.id and lifetime),
     questions = array(
       select body from questions
       where enabled and mode in (v_mode, 'common')
@@ -687,6 +740,7 @@ begin
     'tm_leave(uuid,uuid)',
     'tm_update_settings(uuid,uuid,text,int)',
     'tm_unlock_premium(uuid,uuid,text)',
+    'tm_claim_lifetime(uuid,uuid,text)',
     'tm_start(uuid,uuid)',
     'tm_vote(uuid,uuid,boolean)',
     'tm_force_reveal(uuid,uuid)',

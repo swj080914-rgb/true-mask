@@ -2,7 +2,6 @@ import { Share, StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type RoomState } from '../protocol';
 import { Button, C, Card, Character, DISPLAY_FONT, Label, Segmented, avatarColor } from '../ui';
-import { PremiumCard } from './PremiumCard';
 
 export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
   const online = state.players.filter((p) => p.connected).length;
@@ -64,7 +63,6 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
         {!isHost && <Text style={s.hint}>설정은 방장만 바꿀 수 있어요.</Text>}
       </Card>
 
-      <PremiumCard game={game} state={state} isHost={isHost} />
 
       {isHost ? (
         <>

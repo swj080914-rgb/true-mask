@@ -3,6 +3,7 @@ import type { Game } from '../useGame';
 import type { RoomState } from '../protocol';
 import { Button, C, DISPLAY_FONT } from '../ui';
 import { ResultView } from './GameScreen';
+import { PremiumCard } from './PremiumCard';
 
 export function FinishedScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
   return (
@@ -11,6 +12,7 @@ export function FinishedScreen({ game, state, isHost }: { game: Game; state: Roo
       <Text style={s.title}>MASK OFF</Text>
       <Text style={s.kr}>가면을 벗을 시간</Text>
       <Text style={s.sub}>누가 “예”라고 했을지는 각자의 상상에 맡길게요.</Text>
+      <PremiumCard game={game} state={state} />
       {state.history.map((r, i) => (
         <ResultView key={i} result={r} compact />
       ))}
