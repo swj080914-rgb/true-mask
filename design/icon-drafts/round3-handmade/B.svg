@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><filter id="torn" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="28" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="w" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="8" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.28  0 0 0 0 0.2  0 0 0 0.45 0"/><feComposite in2="SourceGraphic" operator="in"/></filter><filter id="sh"><feDropShadow dx="6" dy="14" stdDeviation="10" flood-color="#4A2E12" flood-opacity="0.45"/></filter>
+   <filter id="sh2"><feDropShadow dx="4" dy="8" stdDeviation="6" flood-color="#2A1A0A" flood-opacity="0.4"/></filter>
+   <mask id="eyes"><rect width="1024" height="1024" fill="white"/><ellipse cx="372" cy="498" rx="66" ry="44" fill="black"/><path d="M592 520 Q652 450 712 520 L712 540 Q652 480 592 540 Z" fill="black"/></mask></defs><rect width="1024" height="1024" fill="#C79C6E"/>
+   <rect width="1024" height="1024" fill="#C79C6E" filter="url(#g)"/>
+   <g filter="url(#sh)">
+     <g filter="url(#torn)" transform="rotate(-6 512 512)"><path d="M190 500 C190 370 300 330 405 352 C462 364 488 392 512 392 C536 392 562 364 619 352 C724 330 834 370 834 500 C834 616 754 668 662 656 C600 648 562 604 512 604 C462 604 424 648 362 656 C270 668 190 616 190 500 Z" transform="translate(512 500) scale(1.16) translate(-512 -500)" fill="#FFFBF2"/></g>
+   </g>
+   <g filter="url(#sh2)" transform="rotate(3 512 512)">
+     <path d="M190 500 C190 370 300 330 405 352 C462 364 488 392 512 392 C536 392 562 364 619 352 C724 330 834 370 834 500 C834 616 754 668 662 656 C600 648 562 604 512 604 C462 604 424 648 362 656 C270 668 190 616 190 500 Z" fill="#7C4DFF" filter="url(#w)" mask="url(#eyes)"/>
+   </g>
+   <g transform="rotate(-28 300 300)" opacity="0.85"><rect x="200" y="270" width="230" height="70" fill="#FFE27A" filter="url(#w)"/></g></svg>
