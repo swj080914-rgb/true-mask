@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { Game } from '../useGame';
-import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Gender, type Mode } from '../protocol';
-import { Button, C, Card, DISPLAY_FONT, Label, ModeIcon, Person, Segmented } from '../ui';
+import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Gender } from '../protocol';
+import { Button, C, Card, Character, DISPLAY_FONT, Label, ModeGuide, Segmented } from '../ui';
 
 const QUESTION_OPTIONS = Array.from({ length: MAX_QUESTIONS - MIN_QUESTIONS + 1 }, (_, i) => {
   const n = MIN_QUESTIONS + i;
@@ -50,7 +50,7 @@ function Teaser() {
       <Text style={s.teaserQ} numberOfLines={2}>Q. {t.q}?</Text>
       <Animated.View style={[s.teaserResult, { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]}>
         <Text style={s.teaserNum}>{t.yes}</Text>
-        <Text style={s.teaserOf}> / {t.total}명이 “예” · 누군지는 🤫</Text>
+        <Text style={s.teaserOf}> / {t.total}명이 “예”</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -60,7 +60,6 @@ export function HomeScreen({ game }: { game: Game }) {
   const [tab, setTab] = useState<'create' | 'join'>('create');
   const [nickname, setNickname] = useState('');
   const [gender, setGender] = useState<Gender | null>(null);
-  const [mode, setMode] = useState<Mode>('mixed');
   const [count, setCount] = useState(6);
   const [code, setCode] = useState('');
 
@@ -68,7 +67,7 @@ export function HomeScreen({ game }: { game: Game }) {
 
   const submit = () => {
     if (!gender) return;
-    if (tab === 'create') game.createRoom({ nickname: nickname.trim(), gender, mode, questionCount: count });
+    if (tab === 'create') game.createRoom({ nickname: nickname.trim(), gender, questionCount: count });
     else game.joinRoom({ code: code.trim().toUpperCase(), nickname: nickname.trim(), gender });
   };
 
@@ -108,13 +107,18 @@ export function HomeScreen({ game }: { game: Game }) {
         <Label>성별</Label>
         <Segmented
           options={[
-            { value: 'M' as Gender, label: '남자', icon: <Person kind="M" color={gender === 'M' ? '#fff' : C.male} size={30} />, color: C.male, edge: C.maleDark },
-            { value: 'F' as Gender, label: '여자', icon: <Person kind="F" color={gender === 'F' ? '#fff' : C.female} size={30} />, color: C.female, edge: C.femaleDark },
+            { value: 'M' as Gender, label: '남자', icon: <Character kind="male" color={C.male} size={64} ring={C.maleDark} />, color: C.male, edge: C.maleDark },
+            { value: 'F' as Gender, label: '여자', icon: <Character kind="female" color={C.female} size={64} ring={C.femaleDark} />, color: C.female, edge: C.femaleDark },
           ]}
           value={gender}
           onChange={setGender}
         />
-        <Text style={s.hint}>성별은 다른 사람에게 표시되지 않아요.</Text>
+        <Text style={s.why}>왜 성별을 고르나요?</Text>
+        <Text style={s.whyBody}>
+          모드를 따로 고를 필요 없이, 방에 모인 사람들의 성별을 보고 <Text style={s.noticeStrong}>게임을 시작할 때 앱이 알아서 질문을 골라요.</Text>
+        </Text>
+        <ModeGuide />
+        <Text style={s.hint}>🔒 내 성별은 다른 사람에게 표시되지 않아요.</Text>
       </Card>
 
       <Card style={{ gap: 4 }}>
@@ -125,16 +129,6 @@ export function HomeScreen({ game }: { game: Game }) {
         />
         {tab === 'create' ? (
           <View style={{ marginTop: 12 }}>
-            <Label>모드</Label>
-            <Segmented
-              options={[
-                { value: 'mixed' as Mode, label: '혼성', icon: <ModeIcon mode="mixed" /> },
-                { value: 'male' as Mode, label: '남자만', icon: <ModeIcon mode="male" /> },
-                { value: 'female' as Mode, label: '여자만', icon: <ModeIcon mode="female" /> },
-              ]}
-              value={mode}
-              onChange={setMode}
-            />
             <Label>질문 수</Label>
             <Segmented options={QUESTION_OPTIONS} value={count} onChange={setCount} />
             <Text style={s.hint}>최소 {MIN_PLAYERS}명이 모이면 시작할 수 있어요.</Text>
@@ -206,5 +200,7 @@ const s = StyleSheet.create({
   noticeText: { color: C.sub, fontSize: 13, lineHeight: 19, flex: 1 },
   noticeStrong: { color: C.text, fontWeight: '800' },
   hint: { color: C.sub, fontSize: 12, marginTop: 10 },
+  why: { color: C.text, fontSize: 14, fontWeight: '900', marginTop: 16 },
+  whyBody: { color: C.sub, fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 10 },
   offline: { color: C.sub, textAlign: 'center' },
 });

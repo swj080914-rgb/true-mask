@@ -1,7 +1,7 @@
 import { Share, StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
-import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Mode, type RoomState } from '../protocol';
-import { Button, C, Card, DISPLAY_FONT, Label, MaskAvatar, MODE_LABEL, ModeIcon, Segmented, avatarColor } from '../ui';
+import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type RoomState } from '../protocol';
+import { Button, C, Card, Character, DISPLAY_FONT, Label, ModeGuide, Segmented, avatarColor } from '../ui';
 import { PremiumCard } from './PremiumCard';
 
 export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
@@ -34,7 +34,7 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
             return (
               <View key={p.id} style={s.player}>
                 {p.isHost && <Text style={s.crown}>👑</Text>}
-                <MaskAvatar color={avatarColor(i)} size={52} dim={!p.connected} />
+                <Character kind="anon" color={avatarColor(i)} size={56} bg={C.inset} ring={C.cardBorder} dim={!p.connected} />
                 <Text style={[s.name, me && { color: C.gold }]} numberOfLines={1}>
                   {p.nickname}
                 </Text>
@@ -53,15 +53,6 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
       </Card>
 
       <Card>
-        <Label>모드</Label>
-        <Segmented
-          disabled={!isHost}
-          options={(['mixed', 'male', 'female'] as Mode[]).map((m) => ({
-            value: m, label: MODE_LABEL[m], icon: <ModeIcon mode={m} />,
-          }))}
-          value={state.mode}
-          onChange={(mode) => game.updateSettings({ mode })}
-        />
         <Label>질문 수</Label>
         <Segmented
           disabled={!isHost}
@@ -75,7 +66,15 @@ export function LobbyScreen({ game, state, isHost }: { game: Game; state: RoomSt
         {!isHost && <Text style={s.hint}>설정은 방장만 바꿀 수 있어요.</Text>}
       </Card>
 
-      {state.mode === 'mixed' && <PremiumCard game={game} state={state} isHost={isHost} />}
+      <Card>
+        <Label>모드는 자동으로 정해져요</Label>
+        <ModeGuide />
+        <Text style={s.hint}>
+          게임을 시작하는 순간 참가자 성별을 보고 질문 종류가 정해져요. 누가 들어올 때마다 바뀌어 보이면 그 사람 성별이 드러나서, 미리 보여주지 않아요.
+        </Text>
+      </Card>
+
+      <PremiumCard game={game} state={state} isHost={isHost} />
 
       {isHost ? (
         <>
@@ -114,7 +113,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', marginTop: -2,
   },
   emptySeat: {
-    width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: C.cardBorder, borderStyle: 'dashed',
+    width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: C.cardBorder, borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center',
   },
   emptyQ: { fontFamily: DISPLAY_FONT, color: C.cardBorder, fontSize: 22 },

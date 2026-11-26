@@ -182,6 +182,30 @@ describe('게임 진행', () => {
     expect(again.history).toEqual([]);
   });
 
+  it('모드는 시작할 때 참가자 성별 구성으로 자동으로 정해진다', async () => {
+    const pick = async (genders: ('M' | 'F')[], asked: string) => {
+      const { players } = await room(genders, asked);
+      return rpc('tm_start', auth(players[0]));
+    };
+    expect((await pick(['M', 'M', 'M'], 'female')).mode).toBe('male');
+    expect((await pick(['F', 'F', 'F'], 'mixed')).mode).toBe('female');
+    expect((await pick(['F', 'M', 'F'], 'male')).mode).toBe('mixed');
+
+    // 남자만 있는 방에는 남자/공통 질문만 나온다
+    const s = await pick(['M', 'M', 'M'], 'mixed');
+    const { rows } = await db.query(`select body from truemask.questions where mode in ('male','common')`);
+    expect(new Set(rows.map((r) => r.body)).has(s.currentQuestion)).toBe(true);
+  });
+
+  it('성별 공개는 혼성일 때만 표시된다', async () => {
+    const { players } = await room(['M', 'M', 'M', 'M']);
+    await rpc('tm_unlock_premium', { ...auth(players[0]), p_receipt: 'mock-receipt' });
+    await rpc('tm_start', auth(players[0]));
+    const s = await voteAll(players, [true, true, false, false]);
+    expect(s.lastResult.genderBreakdown).toBeUndefined();
+    expect(s.lastResult.genderHidden).toBeUndefined();
+  });
+
   it('설정은 방장만, 질문 수는 5~8로 제한', async () => {
     const { players } = await room(['M', 'F']);
     await expect(rpc('tm_update_settings', { ...auth(players[1]), p_mode: 'male' })).rejects.toThrow(/방장/);

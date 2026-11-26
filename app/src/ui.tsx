@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import type { Mode } from './protocol';
+import { Character } from './characters';
+
+export { Character };
 
 /**
  * 디자인 방향: 밤하늘 배경 + 두툼한 3D 버튼 + 굵고 둥근 글씨 (파티 게임 느낌)
@@ -156,77 +159,41 @@ export function Label({ children }: { children: ReactNode }) {
 
 /* ───────── 그림 요소 (이미지 파일 없이 도형으로 그린다) ───────── */
 
-/** 사람 실루엣. 남자는 어깨가 각진 몸, 여자는 아래로 퍼지는 원피스 모양 */
-export function Person({ kind, color, size = 26 }: { kind: 'M' | 'F'; color: string; size?: number }) {
-  const head = size * 0.42;
-  const bodyW = size * 0.72;
-  const bodyH = size * 0.5;
-  return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'flex-end' }}>
-      <View style={{ width: head, height: head, borderRadius: head / 2, backgroundColor: color, marginBottom: size * 0.06 }} />
-      {kind === 'M' ? (
-        <View
-          style={{
-            width: bodyW, height: bodyH, backgroundColor: color,
-            borderTopLeftRadius: bodyW * 0.45, borderTopRightRadius: bodyW * 0.45,
-            borderBottomLeftRadius: 2, borderBottomRightRadius: 2,
-          }}
-        />
-      ) : (
-        <View
-          style={{
-            width: bodyW * 0.34, height: 0,
-            borderBottomWidth: bodyH, borderBottomColor: color,
-            borderLeftWidth: bodyW * 0.36, borderLeftColor: 'transparent',
-            borderRightWidth: bodyW * 0.36, borderRightColor: 'transparent',
-            borderTopLeftRadius: 6, borderTopRightRadius: 6,
-          }}
-        />
-      )}
-    </View>
-  );
-}
-
-/** 모드 그림: 혼성은 파랑+분홍이 섞이고, 남자만/여자만은 같은 색 두 명 */
-export function ModeIcon({ mode, size = 26 }: { mode: Mode; size?: number }) {
-  const [a, b]: ['M' | 'F', 'M' | 'F'] = mode === 'mixed' ? ['M', 'F'] : mode === 'male' ? ['M', 'M'] : ['F', 'F'];
-  const col = (k: 'M' | 'F') => (k === 'M' ? C.male : C.female);
+/** 모드 그림: 혼성은 남자(파랑)+여자(분홍), 남자만/여자만은 같은 성별 두 명 */
+export function ModeIcon({ mode, size = 40 }: { mode: Mode; size?: number }) {
+  const kinds: ['male' | 'female', 'male' | 'female'] =
+    mode === 'mixed' ? ['male', 'female'] : mode === 'male' ? ['male', 'male'] : ['female', 'female'];
+  const col = (k: 'male' | 'female') => (k === 'male' ? C.male : C.female);
   return (
     <View style={{ flexDirection: 'row', marginBottom: 6 }}>
-      <View style={s.iconBadge}>
-        <Person kind={a} color={col(a)} size={size} />
-      </View>
-      <View style={[s.iconBadge, { marginLeft: -size * 0.3 }]}>
-        <Person kind={b} color={col(b)} size={size} />
+      <Character kind={kinds[0]} color={col(kinds[0])} size={size} ring={C.inset} />
+      <View style={{ marginLeft: -size * 0.28 }}>
+        <Character kind={kinds[1]} color={col(kinds[1])} size={size} ring={C.inset} />
       </View>
     </View>
   );
 }
 
-/** 참가자 아바타: 색깔 동그라미에 가면 눈구멍. 성별과 무관한 색을 쓴다 */
-export function MaskAvatar({ color, size = 44, dim }: { color: string; size?: number; dim?: boolean }) {
-  const eyeW = size * 0.24;
-  const eyeH = size * 0.15;
+const MODE_GUIDE: { mode: Mode; when: string }[] = [
+  { mode: 'male', when: '모두 남자면' },
+  { mode: 'female', when: '모두 여자면' },
+  { mode: 'mixed', when: '섞여 있으면' },
+];
+
+/** 성별 구성에 따라 모드가 자동으로 정해진다는 안내 */
+export function ModeGuide({ active }: { active?: Mode }) {
   return (
-    <View
-      style={{
-        width: size, height: size, borderRadius: size / 2, backgroundColor: color,
-        borderBottomWidth: size * 0.08, borderBottomColor: 'rgba(0,0,0,0.25)',
-        alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: size * 0.1,
-        opacity: dim ? 0.35 : 1,
-      }}
-    >
-      {[0, 1].map((i) => (
-        <View
-          key={i}
-          style={{
-            width: eyeW, height: eyeH, backgroundColor: '#1A1033',
-            borderTopLeftRadius: i ? eyeH * 0.3 : eyeH, borderTopRightRadius: i ? eyeH : eyeH * 0.3,
-            borderBottomLeftRadius: eyeH, borderBottomRightRadius: eyeH,
-            marginTop: -size * 0.08,
-          }}
-        />
-      ))}
+    <View style={s.guideRow}>
+      {MODE_GUIDE.map((g) => {
+        const on = active === g.mode;
+        return (
+          <View key={g.mode} style={[s.guideItem, on && s.guideOn, active && !on && { opacity: 0.4 }]}>
+            <ModeIcon mode={g.mode} size={34} />
+            <Text style={s.guideWhen}>{g.when}</Text>
+            <Text style={s.guideMode}>{MODE_LABEL[g.mode]} 질문</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -267,10 +234,15 @@ const s = StyleSheet.create({
   segItemTall: { minHeight: 86, paddingVertical: 10 },
   segText: { color: C.sub, fontSize: 15, fontWeight: '700' },
   segTextOn: { color: C.text, fontWeight: '800' },
-  label: { color: C.sub, fontSize: 13, fontWeight: '800', marginBottom: 10, marginTop: 6, letterSpacing: 0.3 },
-  iconBadge: {
-    backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 100, padding: 4, borderWidth: 2, borderColor: 'rgba(17,11,34,0.55)',
+  guideRow: { flexDirection: 'row', gap: 8 },
+  guideItem: {
+    flex: 1, alignItems: 'center', backgroundColor: C.inset, borderRadius: 16, paddingVertical: 12,
+    paddingHorizontal: 4, borderWidth: 2, borderColor: C.cardBorder,
   },
+  guideOn: { borderColor: C.gold, backgroundColor: C.accentDim },
+  guideWhen: { color: C.sub, fontSize: 12, fontWeight: '700' },
+  guideMode: { color: C.text, fontSize: 14, fontWeight: '900', marginTop: 2 },
+  label: { color: C.sub, fontSize: 13, fontWeight: '800', marginBottom: 10, marginTop: 6, letterSpacing: 0.3 },
   glowTop: {
     position: 'absolute', top: -160, alignSelf: 'center', width: 420, height: 420, borderRadius: 210,
     backgroundColor: C.accent, opacity: 0.16,

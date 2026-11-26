@@ -284,9 +284,9 @@ begin
   insert into results (room_id, idx, question, yes, total, male_yes, female_yes, gender_hidden)
   values (
     p_room, r.question_index, r.questions[r.question_index + 1], c.yes, c.total,
-    case when r.premium and safe then c.y_m end,
-    case when r.premium and safe then c.y_f end,
-    r.premium and not safe
+    case when r.premium and r.mode = 'mixed' and safe then c.y_m end,
+    case when r.premium and r.mode = 'mixed' and safe then c.y_f end,
+    r.premium and r.mode = 'mixed' and not safe
   )
   on conflict (room_id, idx) do update set
     question = excluded.question, yes = excluded.yes, total = excluded.total,
@@ -459,7 +459,7 @@ declare
 begin
   if nick is null then perform fail('닉네임을 1~12자로 입력해 주세요.'); end if;
   if p_gender is null or p_gender not in ('M', 'F') then perform fail('성별을 선택해 주세요.'); end if;
-  if p_mode is null or p_mode not in ('mixed', 'male', 'female') then perform fail('모드를 선택해 주세요.'); end if;
+  -- p_mode 는 예전 앱과의 호환용. 실제 모드는 게임을 시작할 때 참가자 성별 구성으로 정해진다 (tm_start).
 
   perform sweep();
   if rate_limited('create', 5, interval '10 minutes') then
@@ -475,7 +475,8 @@ begin
   end loop;
 
   insert into rooms (code, mode, question_count)
-  values (new_code, p_mode, least(8, greatest(5, coalesce(p_question_count, 5))))
+  values (new_code, case when p_mode in ('mixed', 'male', 'female') then p_mode else 'mixed' end,
+          least(8, greatest(5, coalesce(p_question_count, 5))))
   returning id into room_id;
   insert into players (room_id, nickname, gender) values (room_id, nick, p_gender) returning * into p;
   update rooms set host_id = p.id where id = room_id;
@@ -582,15 +583,26 @@ as $$
 declare
   p players := enter(p_player, p_secret);
   r rooms := assert_host(p);
+  v_mode text;
 begin
   if r.phase <> 'lobby' then perform fail('이미 진행 중이에요.'); end if;
   if (select count(*) from players where room_id = r.id and last_seen > online_since()) < 3 then
     perform fail('익명성을 위해 최소 3명이 필요해요.');
   end if;
+  -- 모드는 방장이 고르지 않는다. 시작하는 순간 방에 있는 사람들의 성별 구성으로 정한다.
+  -- (대기실에서 미리 보여주면 새로 들어온 사람의 성별이 드러나므로 시작 때만 정한다)
+  select case
+           when bool_and(gender = 'M') then 'male'
+           when bool_and(gender = 'F') then 'female'
+           else 'mixed'
+         end
+    into v_mode
+    from players where room_id = r.id;
   update rooms set
+    mode = v_mode,
     questions = array(
       select body from questions
-      where enabled and mode in (r.mode, 'common')
+      where enabled and mode in (v_mode, 'common')
       group by body
       order by random()
       limit r.question_count

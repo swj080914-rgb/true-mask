@@ -1,10 +1,12 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
-import { MIN_PLAYERS, type QuestionResult, type RoomState } from '../protocol';
-import { Button, C, Card, DISPLAY_FONT, MaskAvatar, avatarColor } from '../ui';
+import type { QuestionResult, RoomState } from '../protocol';
+import { Button, C, Card, Character, DISPLAY_FONT, MODE_LABEL, ModeIcon } from '../ui';
 
 /** 투표 중 화면 + 결과 공개 화면 */
 export function GameScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
+  // 투표 현황은 이름·순서 없이 "투표한 사람 수"만큼 불을 켠다. 누가 먼저 눌렀는지도 알 수 없게 한다.
+  const seats = Array.from({ length: state.voterCount }, (_, i) => i < state.votedCount);
   const me = state.players.find((p) => p.id === game.playerId);
   // 내가 무엇을 골랐는지는 화면에 남기지 않는다 (옆 사람이 폰 화면을 볼 수 있으므로)
   const vote = (yes: boolean) => void game.vote(yes);
@@ -19,7 +21,13 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
           <View key={i} style={[s.pip, i < state.questionIndex && s.pipDone, i === state.questionIndex && s.pipNow]} />
         ))}
       </View>
-      <Text style={s.progress}>QUESTION {progress}</Text>
+      <View style={s.topRow}>
+        <Text style={s.progress}>QUESTION {progress}</Text>
+        <View style={s.modeBadge}>
+          <ModeIcon mode={state.mode} size={22} />
+          <Text style={s.modeText}>{MODE_LABEL[state.mode]} 질문</Text>
+        </View>
+      </View>
       <Card style={s.qCard}>
         <Text testID="question" style={s.question}>{state.currentQuestion}</Text>
       </Card>
@@ -28,8 +36,9 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
         <>
           {me?.hasVoted ? (
             <Card style={{ alignItems: 'center' }}>
-              <Text testID="voted" style={s.voted}>투표 완료 🎭</Text>
-              <Text style={s.sub}>무엇을 골랐는지는 어디에도 남지 않아요.</Text>
+              <Character kind="anon" color={C.accent} size={64} bg={C.inset} ring={C.gold} />
+              <Text testID="voted" style={s.voted}>투표 완료</Text>
+              <Text style={s.sub}>내가 뭘 골랐는지는 어디에도 남지 않아요.</Text>
             </Card>
           ) : (
             <View style={s.voteRow}>
@@ -42,22 +51,13 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
             {state.votedCount} / {state.voterCount}명 투표 완료
           </Text>
           <View style={s.chips}>
-            {state.players.map((p, i) => (
-              <View key={p.id} style={[s.chip, !p.connected && { opacity: 0.4 }]}>
-                <MaskAvatar color={avatarColor(i)} size={34} dim={!p.hasVoted} />
-                {p.hasVoted && <Text style={s.check}>✓</Text>}
-                <Text style={[s.chipName, p.hasVoted && { color: C.text }]} numberOfLines={1}>{p.nickname}</Text>
+            {seats.map((done, i) => (
+              <View key={i} style={s.chip}>
+                <Character kind="anon" color={done ? C.accent : C.cardBorder} size={44} bg={C.inset} dim={!done} />
+                {done && <Text style={s.check}>✓</Text>}
               </View>
             ))}
           </View>
-          {isHost && state.votedCount < state.voterCount && (
-            <Button
-              title="남은 사람 기다리지 않고 공개"
-              kind="ghost"
-              onPress={game.forceReveal}
-              disabled={state.votedCount < MIN_PLAYERS}
-            />
-          )}
         </>
       ) : (
         state.lastResult && (
@@ -108,22 +108,27 @@ const s = StyleSheet.create({
   pip: { flex: 1, height: 8, borderRadius: 4, backgroundColor: C.cardBorder },
   pipDone: { backgroundColor: C.accent },
   pipNow: { backgroundColor: C.gold },
-  progress: { fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 16, letterSpacing: 2, textAlign: 'center' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progress: { fontFamily: DISPLAY_FONT, color: C.gold, fontSize: 16, letterSpacing: 2 },
+  modeBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.card, borderRadius: 20,
+    paddingLeft: 6, paddingRight: 12, paddingTop: 6, borderWidth: 2, borderColor: C.cardBorder,
+  },
+  modeText: { color: C.text, fontSize: 12, fontWeight: '900', marginBottom: 6 },
   qCard: { minHeight: 200, justifyContent: 'center', borderColor: C.accent, borderBottomWidth: 6 },
   question: { color: C.text, fontSize: 25, fontWeight: '900', textAlign: 'center', lineHeight: 36, letterSpacing: -0.5 },
   voteRow: { flexDirection: 'row', gap: 12 },
   voteBtn: { flex: 1, minHeight: 84, borderRadius: 22 },
   voteText: { fontSize: 24, fontWeight: '900' },
-  voted: { color: C.text, fontSize: 20, fontWeight: '900' },
+  voted: { color: C.text, fontSize: 20, fontWeight: '900', marginTop: 10 },
   lock: { color: C.sub, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   sub: { color: C.sub, fontSize: 14, textAlign: 'center', marginTop: 6 },
   center: { color: C.sub, textAlign: 'center', fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  chip: { alignItems: 'center', width: 56, gap: 4 },
-  chipName: { color: C.sub, fontSize: 11, fontWeight: '700', maxWidth: 56 },
+  chip: { alignItems: 'center' },
   check: {
-    position: 'absolute', right: 6, top: 22, color: '#03251A', backgroundColor: C.yes, fontSize: 10,
-    fontWeight: '900', width: 16, height: 16, borderRadius: 8, textAlign: 'center', lineHeight: 16, overflow: 'hidden',
+    position: 'absolute', right: -3, bottom: -3, color: '#03251A', backgroundColor: C.yes, fontSize: 10,
+    fontWeight: '900', width: 18, height: 18, borderRadius: 9, textAlign: 'center', lineHeight: 18, overflow: 'hidden',
   },
   big: { fontFamily: DISPLAY_FONT, fontSize: 88, lineHeight: 96 },
   unit: { color: C.text, fontSize: 28, fontWeight: '900' },

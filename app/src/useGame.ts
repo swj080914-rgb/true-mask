@@ -21,7 +21,7 @@ export interface Game {
   error: string | null;
   busy: boolean;
   clearError: () => void;
-  createRoom: (p: { nickname: string; gender: Gender; mode: Mode; questionCount: number }) => Promise<boolean>;
+  createRoom: (p: { nickname: string; gender: Gender; questionCount: number }) => Promise<boolean>;
   joinRoom: (p: { code: string; nickname: string; gender: Gender }) => Promise<boolean>;
   leave: () => void;
   updateSettings: (p: { mode?: Mode; questionCount?: number }) => void;
@@ -204,7 +204,7 @@ export function useGame(): Game {
         await rpc('tm_create_room', {
           p_nickname: p.nickname,
           p_gender: p.gender,
-          p_mode: p.mode,
+          p_mode: 'mixed', // 실제 모드는 서버가 게임 시작 때 참가자 성별로 정한다 (예전 서버와의 호환용 값)
           p_question_count: p.questionCount,
         }),
       ),
