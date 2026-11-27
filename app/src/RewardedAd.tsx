@@ -38,7 +38,7 @@ export function RewardedAd({ visible, onReward, onClose }: {
           {done ? (
             <Button testID="ad-reward" kind="gold" title="하나 더 공개하기" onPress={() => onReward(mockAdToken())} style={s.btn} />
           ) : (
-            <Button testID="ad-close" kind="ghost" title="닫기 (보상 없음)" onPress={onClose} style={s.btn} />
+            <Button testID="ad-close" kind="ghost" title="닫기" onPress={onClose} style={s.btn} />
           )}
         </View>
       </View>
