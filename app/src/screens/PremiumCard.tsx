@@ -1,36 +1,49 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SvgXml } from 'react-native-svg';
 import type { Game } from '../useGame';
 import type { RoomState } from '../protocol';
-import { Button, C } from '../ui';
+import { C } from '../ui';
 import { COPY } from '../copy';
+import { GOLD_TINT, OFF_TINT, mascotSvg } from '../mascotArt';
+
+const GOLD_SVG = mascotSvg({ tint: GOLD_TINT, viewBox: '0 28 240 142' });
+const OFF_SVG = mascotSvg({ tint: OFF_TINT, viewBox: '0 28 240 142' });
 
 /**
  * 성별 공개가 열려 있으면 작은 표시만 보여준다 (결제 칸은 최종 결과의 선택창 PurchaseSheet 에 있다)
+ * - 1회권: "👑 이번 판 공개" 글자
+ * - GOLD MASK(평생권): 가면 그림. 켜져 있으면 금색, 꺼져 있으면 회색.
+ *   GOLD MASK를 가진 사람은 그림을 눌러 켜고 끌 수 있다 (1회권으로 열린 판은 끌 수 없음).
  * - 누가 샀는지는 서버도 보내지 않는다.
- * - 평생권은 가진 사람이 켜고 끌 수 있다 (친구들이 원하지 않을 수 있으므로). 1회권은 끌 수 없다.
  */
 export function PremiumCard({ game, state }: { game: Game; state: RoomState }) {
   const lobby = state.phase === 'lobby';
   const mixedGame = !lobby && state.mode === 'mixed';
-  const iHaveLifetime = game.lifetime && state.lifetimeInRoom;
 
-  let label: string | null = null;
-  if (state.premium) label = state.premiumBy === 'oneGame' ? COPY.onByOneGame : COPY.onByLifetime;
-  else if (state.lifetimeInRoom && (lobby || mixedGame)) label = state.lifetimeOn ? COPY.onByLifetime : COPY.lifetimeOff;
-  if (!label) return null;
+  if (state.premiumBy === 'oneGame') {
+    return (
+      <View style={s.wrap}>
+        <Text testID="premium-on" style={s.badge}>{COPY.onByOneGame}</Text>
+      </View>
+    );
+  }
+  if (!state.lifetimeInRoom || !(lobby || mixedGame)) return null;
 
-  const showToggle = iHaveLifetime && (lobby || mixedGame) && state.premiumBy !== 'oneGame';
+  const on = state.premium || (lobby && state.lifetimeOn);
+  const canToggle = game.lifetime;
   return (
     <View style={s.wrap}>
-      <Text testID="premium-on" style={[s.badge, label === COPY.lifetimeOff && s.off]}>{label}</Text>
-      {showToggle && (
-        <Button
-          testID="lifetime-toggle"
-          kind="ghost"
-          title={state.lifetimeOn ? COPY.lifetimeTurnOff : COPY.lifetimeTurnOn}
-          onPress={() => game.setLifetimeOn(!state.lifetimeOn)}
-        />
-      )}
+      <Pressable
+        testID="gold-mask"
+        accessibilityRole={canToggle ? 'switch' : 'image'}
+        accessibilityState={{ checked: on }}
+        accessibilityLabel={on ? COPY.onByLifetime : COPY.lifetimeOff}
+        disabled={!canToggle}
+        onPress={() => game.setLifetimeOn(!state.lifetimeOn)}
+        style={({ pressed }) => [s.mask, pressed && { transform: [{ scale: 0.92 }] }]}
+      >
+        <SvgXml xml={on ? GOLD_SVG : OFF_SVG} width={76} height={45} />
+      </Pressable>
     </View>
   );
 }
@@ -41,5 +54,5 @@ const s = StyleSheet.create({
     color: C.gold, fontSize: 13, fontWeight: '900', borderWidth: 2, borderColor: C.goldDark, borderRadius: 999,
     paddingHorizontal: 14, paddingVertical: 6, overflow: 'hidden',
   },
-  off: { color: C.sub, borderColor: C.cardBorder },
+  mask: { padding: 4 },
 });

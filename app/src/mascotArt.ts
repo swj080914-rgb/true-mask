@@ -52,10 +52,19 @@ export interface MascotSvgOptions {
   /** 보여줄 영역. 기본은 전체 "0 0 240 200" */
   viewBox?: string;
   size?: number;
+  /** 가면 색 바꾸기 (GOLD MASK: 금색 / 꺼짐: 회색). 없으면 흰 가면 */
+  tint?: { fill: string; shade: string; blush?: string };
 }
 
+/** GOLD MASK 켜짐 / 꺼짐 색 */
+export const GOLD_TINT = { fill: '#FFC83D', shade: '#C48F0F', blush: '#FF9F5A' };
+export const OFF_TINT = { fill: '#7A7299', shade: '#4E4770', blush: '#7A7299' };
+
 export function mascotSvg(o: MascotSvgOptions = {}): string {
-  const { expression = 'smile', shadow = false, bg, monochrome = false, viewBox = '0 0 240 200', size } = o;
+  const { expression = 'smile', shadow = false, bg, monochrome = false, viewBox = '0 0 240 200', size, tint } = o;
+  const fill = tint?.fill ?? MASK_FILL;
+  const shade = tint?.shade ?? MASK_SHADE;
+  const blush = tint?.blush ?? BLUSH;
   const parts: string[] = [];
   const [vx, vy, vw, vh] = viewBox.split(' ').map(Number);
 
@@ -70,10 +79,10 @@ export function mascotSvg(o: MascotSvgOptions = {}): string {
   } else {
     const sw = 5 / KX;
     parts.push(
-      `<path d="${MASK_PATH}" transform="${place(CX, CY + 7)}" fill="${MASK_SHADE}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
-      `<path d="${MASK_PATH}" transform="${place(CX, CY)}" fill="${MASK_FILL}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
-      `<ellipse cx="${CX - EYE_DX - 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${BLUSH}" opacity="0.8"/>`,
-      `<ellipse cx="${CX + EYE_DX + 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${BLUSH}" opacity="0.8"/>`,
+      `<path d="${MASK_PATH}" transform="${place(CX, CY + 7)}" fill="${shade}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
+      `<path d="${MASK_PATH}" transform="${place(CX, CY)}" fill="${fill}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
+      `<ellipse cx="${CX - EYE_DX - 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${blush}" opacity="0.8"/>`,
+      `<ellipse cx="${CX + EYE_DX + 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${blush}" opacity="0.8"/>`,
     );
     if (expression === 'smile') parts.push(smileEye(CX - EYE_DX, INK), smileEye(CX + EYE_DX, INK));
     if (expression === 'wink') {

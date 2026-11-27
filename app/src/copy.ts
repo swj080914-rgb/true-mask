@@ -37,10 +37,9 @@ export const COPY = {
 
   // ── 열려 있을 때 모두에게 보이는 작은 표시 ────────────────────
   onByOneGame: '👑 이번 판 공개',
-  onByLifetime: '👑 GOLD MASK',
-  lifetimeOff: '👑 GOLD MASK 꺼짐',
-  lifetimeTurnOff: '내 GOLD MASK 끄기',
-  lifetimeTurnOn: '내 GOLD MASK 켜기',
+  // GOLD MASK는 글자 대신 가면 그림으로 보여줘요 (켜짐: 금색, 꺼짐: 회색). 아래 두 줄은 화면 읽기 기능용 이름
+  onByLifetime: 'GOLD MASK 켜짐',
+  lifetimeOff: 'GOLD MASK 꺼짐',
 
   // ── 홈 화면: 평생권 (이름: GOLD MASK) ──────────────────────────────────────────
   homeLifetimeTitle: '👑 GOLD MASK',
