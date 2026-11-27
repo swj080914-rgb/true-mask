@@ -43,7 +43,7 @@ export const COPY = {
 
   // ── 홈 화면: 평생권 (이름: GOLD MASK) ──────────────────────────────────────────
   homeLifetimeTitle: '👑 GOLD MASK',
-  homeLifetimeBody: '내가 낀 방은 남녀가 다 보여요. 광고도 없어요.',
+  homeLifetimeBody: '성별 공개 무제한 + 광고 제거',
   homeLifetimeBuy: `GOLD MASK 받기 · ${PRICE.lifetime}`,
   homeLifetimeOwned: '👑 GOLD MASK 쓰는 중',
   homeRestore: '구매 복원',
