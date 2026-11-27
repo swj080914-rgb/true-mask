@@ -25,8 +25,10 @@ export interface QuestionResult {
   total: number;
   /** 프리미엄 방에서만, 그리고 익명성 보호 조건을 통과할 때만 채워진다. */
   genderBreakdown?: { M: number; F: number };
-  /** 프리미엄 방인데 익명성 보호 때문에 성별을 숨겼을 때 true */
+  /** 익명성 보호 때문에 성별을 숨겼을 때 true (전체 공개 중이거나, 최종 결과에서 고르는 중일 때만 옴) */
   genderHidden?: boolean;
+  /** 최종 결과에서 방장이 이 질문을 골라 성별을 공개할 수 있으면 true */
+  canPick?: boolean;
 }
 
 export interface RoomState {
@@ -46,6 +48,10 @@ export interface RoomState {
   lifetimeOn: boolean;
   /** 결제 칸: none 안 보임 / open 살 수 있음 / blocked 회색으로 막힘 / closed 시간 지남 */
   purchase: 'none' | 'open' | 'blocked' | 'closed';
+  /** 최종 결과에서 방장이 더 고를 수 있는 질문 수 (무료 1개 + 광고를 보면 1개) */
+  picksLeft: number;
+  /** 방장이 광고를 보고 하나 더 고를 수 있는지 (무료 1개를 쓴 뒤, 판마다 1번) */
+  adAvailable: boolean;
   phase: Phase;
   players: PublicPlayer[];
   questionIndex: number; // 0부터

@@ -56,11 +56,14 @@ export function PremiumCard({ game, state }: { game: Game; state: RoomState }) {
   if (state.purchase !== 'open' && state.purchase !== 'blocked') return lifetimeNotice || null;
 
   const blocked = state.purchase === 'blocked';
+  const finished = state.phase === 'finished';
   return (
     <>
       {lifetimeNotice}
       <Card style={[s.card, blocked && s.cardBlocked]}>
-        <Text style={[s.title, blocked && { color: C.sub }]}>👀 이 중에 남자 몇 명, 여자 몇 명?</Text>
+        <Text style={[s.title, blocked && { color: C.sub }]}>
+          {finished ? '👀 나머지 질문도 전부 볼까요?' : '👀 이 중에 남자 몇 명, 여자 몇 명?'}
+        </Text>
         <View style={s.lockRow}>
           <Text style={[s.lock, { color: blocked ? C.sub : C.male }]}>남자 ?명</Text>
           <Text style={[s.lock, { color: blocked ? C.sub : C.female }]}>여자 ?명</Text>
@@ -69,9 +72,13 @@ export function PremiumCard({ game, state }: { game: Game; state: RoomState }) {
           <Text testID="premium-blocked" style={s.body}>
             한 성별이 1명뿐이라 익명 보호를 위해 이번 판은 열 수 없어요.
           </Text>
+        ) : finished ? (
+          <Text style={s.body}>
+            열면 이번 판 모든 질문에 남녀 인원이 보여요.{'\n'}누가 열었는지는 아무도 몰라요.
+          </Text>
         ) : (
           <Text style={s.body}>
-            첫 질문 투표 중에만 열 수 있어요. 열면 이번 판 모든 질문에 남녀 인원이 보여요.{'\n'}누가 눌렀는지, 누가 열었는지는 아무도 몰라요.
+            지금 열면 이번 판 모든 질문에 남녀 인원이 바로 보여요.{'\n'}안 열어도 게임이 끝나면 방장이 질문 1개는 무료로 공개할 수 있어요.{'\n'}누가 눌렀는지, 누가 열었는지는 아무도 몰라요.
           </Text>
         )}
         {PURCHASES_AVAILABLE ? (
@@ -79,7 +86,7 @@ export function PremiumCard({ game, state }: { game: Game; state: RoomState }) {
             <Button
               testID="buy-one"
               kind="gold"
-              title={`이번 판만 열기 · ${PRICE_ONE_GAME}`}
+              title={`${finished ? '이번 판 전체 공개' : '이번 판만 열기'} · ${PRICE_ONE_GAME}`}
               onPress={() => void game.buyOneGame()}
               disabled={blocked}
               loading={game.busy}
@@ -89,7 +96,7 @@ export function PremiumCard({ game, state }: { game: Game; state: RoomState }) {
               <Button
                 testID="buy-lifetime"
                 kind="secondary"
-                title={`평생 열기 · ${PRICE_LIFETIME}`}
+                title={`평생 열기 · 광고 제거 · ${PRICE_LIFETIME}`}
                 onPress={() => void game.buyLifetime()}
                 disabled={blocked}
                 style={{ marginTop: 10 }}

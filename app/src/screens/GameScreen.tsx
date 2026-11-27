@@ -93,7 +93,7 @@ function ResultStage({ result, footer }: { result: QuestionResult; footer: React
   );
 }
 
-export function ResultView({ result, compact }: { result: QuestionResult; compact?: boolean }) {
+export function ResultView({ result, compact, action }: { result: QuestionResult; compact?: boolean; action?: React.ReactNode }) {
   const pct = result.total ? result.yes / result.total : 0;
   return (
     <Card style={compact ? undefined : { alignItems: 'center' }}>
@@ -116,6 +116,7 @@ export function ResultView({ result, compact }: { result: QuestionResult; compac
       {result.genderHidden && (
         <Text style={[s.sub, { marginTop: 10 }]}>👑 한 성별 인원이 너무 적어 익명 보호를 위해 성별을 숨겼어요</Text>
       )}
+      {action}
     </Card>
   );
 }

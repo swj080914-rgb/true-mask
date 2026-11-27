@@ -34,6 +34,10 @@ export interface Game {
   buyLifetime: () => Promise<boolean>;
   /** 평생권 성별 공개 켜기/끄기 (평생권을 가진 사람만) */
   setLifetimeOn: (on: boolean) => void;
+  /** 최종 결과에서 방장이 질문 하나를 골라 성별 공개 (무료 1개, 광고 보면 1개 더) */
+  pickGender: (idx: number) => Promise<boolean>;
+  /** 광고를 끝까지 본 뒤 하나 더 고를 기회 받기 */
+  claimAdPick: (adToken: string) => Promise<boolean>;
   start: () => void;
   vote: (yes: boolean) => Promise<boolean>;
   forceReveal: () => void;
@@ -264,6 +268,8 @@ export function useGame(): Game {
       return a ? act('tm_claim_lifetime', { p_receipt: purchases.LIFETIME_RECEIPT }) : true;
     },
     setLifetimeOn: (on) => void act('tm_set_lifetime_on', { p_on: on }),
+    pickGender: (idx) => act('tm_pick_gender', { p_idx: idx }),
+    claimAdPick: (adToken) => act('tm_ad_pick', { p_ad: adToken }),
     start: () => void act('tm_start'),
     vote: (yes) => act('tm_vote', { p_yes: yes }),
     forceReveal: () => void act('tm_force_reveal'),
