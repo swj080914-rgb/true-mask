@@ -52,10 +52,19 @@ export interface MascotSvgOptions {
   /** 보여줄 영역. 기본은 전체 "0 0 240 200" */
   viewBox?: string;
   size?: number;
+  /** 가면 색 바꾸기 (GOLD MASK: 금색 / 꺼짐: 회색). 없으면 흰 가면 */
+  tint?: { fill: string; shade: string; blush?: string };
 }
 
+/** GOLD MASK 켜짐 / 꺼짐 색 */
+export const GOLD_TINT = { fill: '#FFC83D', shade: '#C48F0F', blush: '#FF9F5A' };
+export const OFF_TINT = { fill: '#7A7299', shade: '#4E4770', blush: '#7A7299' };
+
 export function mascotSvg(o: MascotSvgOptions = {}): string {
-  const { expression = 'smile', shadow = false, bg, monochrome = false, viewBox = '0 0 240 200', size } = o;
+  const { expression = 'smile', shadow = false, bg, monochrome = false, viewBox = '0 0 240 200', size, tint } = o;
+  const fill = tint?.fill ?? MASK_FILL;
+  const shade = tint?.shade ?? MASK_SHADE;
+  const blush = tint?.blush ?? BLUSH;
   const parts: string[] = [];
   const [vx, vy, vw, vh] = viewBox.split(' ').map(Number);
 
@@ -70,10 +79,10 @@ export function mascotSvg(o: MascotSvgOptions = {}): string {
   } else {
     const sw = 5 / KX;
     parts.push(
-      `<path d="${MASK_PATH}" transform="${place(CX, CY + 7)}" fill="${MASK_SHADE}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
-      `<path d="${MASK_PATH}" transform="${place(CX, CY)}" fill="${MASK_FILL}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
-      `<ellipse cx="${CX - EYE_DX - 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${BLUSH}" opacity="0.8"/>`,
-      `<ellipse cx="${CX + EYE_DX + 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${BLUSH}" opacity="0.8"/>`,
+      `<path d="${MASK_PATH}" transform="${place(CX, CY + 7)}" fill="${shade}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
+      `<path d="${MASK_PATH}" transform="${place(CX, CY)}" fill="${fill}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round"/>`,
+      `<ellipse cx="${CX - EYE_DX - 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${blush}" opacity="0.8"/>`,
+      `<ellipse cx="${CX + EYE_DX + 4}" cy="${EYE_Y + 26}" rx="14" ry="6.5" fill="${blush}" opacity="0.8"/>`,
     );
     if (expression === 'smile') parts.push(smileEye(CX - EYE_DX, INK), smileEye(CX + EYE_DX, INK));
     if (expression === 'wink') {
@@ -92,3 +101,19 @@ export const ICON_VIEWBOX = '0 -16 240 240';
 
 /** 스플래시(로딩 화면) 그림 영역: 가면이 가운데 오는 정사각형. 윙크 반짝이까지 들어가게 */
 export const SPLASH_VIEWBOX = '0 -24 240 240';
+
+/** GOLD MASK 왕관 (가면 위 가운데) */
+const crown = (fill: string, gem: string) => {
+  const x = CX, y = 60, w = 34, h = 30;
+  return (
+    `<path d="M${x - w} ${y} L${x - w - 4} ${y - h} L${x - w / 2} ${y - h * 0.45} L${x} ${y - h - 8} L${x + w / 2} ${y - h * 0.45} L${x + w + 4} ${y - h} L${x + w} ${y} Z" fill="${fill}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>` +
+    `<circle cx="${x}" cy="${y - h - 8}" r="5" fill="${gem}" stroke="${INK}" stroke-width="3"/>`
+  );
+};
+
+/** GOLD MASK 그림: 왕관 쓴 가면. 켜짐(가졌음) 금색, 꺼짐 회색 */
+export function goldMaskSvg(on: boolean): string {
+  const t = on ? GOLD_TINT : OFF_TINT;
+  const body = mascotSvg({ tint: t }).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -10 240 190">${body}${crown(t.fill, on ? '#FF6FB5' : t.shade)}</svg>`;
+}

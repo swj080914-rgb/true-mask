@@ -30,10 +30,14 @@ export interface Game {
   lifetime: boolean;
   /** 1회권 구매 → 이번 판 성별 공개 */
   buyOneGame: () => Promise<boolean>;
-  /** 평생권 구매 → 지금 방부터 바로 적용 */
+  /** 평생권 구매 (홈·최종 결과) → 방에 있으면 바로 적용 */
   buyLifetime: () => Promise<boolean>;
+  /** 구매 복원 → 평생권이 있으면 true */
+  restoreLifetime: () => Promise<boolean>;
   /** 평생권 성별 공개 켜기/끄기 (평생권을 가진 사람만) */
   setLifetimeOn: (on: boolean) => void;
+  /** 방장이 광고를 끝까지 본 뒤, 고른 질문 하나의 성별 공개 (판마다 1번) */
+  adReveal: (idx: number, adToken: string) => Promise<boolean>;
   start: () => void;
   vote: (yes: boolean) => Promise<boolean>;
   forceReveal: () => void;
@@ -255,15 +259,27 @@ export function useGame(): Game {
       return receipt ? act('tm_unlock_premium', { p_receipt: receipt }) : false;
     },
     buyLifetime: async () => {
-      await sync();
-      if (stateRef.current?.purchase !== 'open') return false;
       if (!(await purchases.buyLifetime())) return false;
       lifetimeRef.current = true;
       setLifetime(true);
       const a = auth();
       return a ? act('tm_claim_lifetime', { p_receipt: purchases.LIFETIME_RECEIPT }) : true;
     },
+    restoreLifetime: async () => {
+      const v = await purchases.restoreLifetime();
+      if (v) {
+        lifetimeRef.current = true;
+        setLifetime(true);
+        void claimLifetime();
+      }
+      return v;
+    },
     setLifetimeOn: (on) => void act('tm_set_lifetime_on', { p_on: on }),
+    adReveal: async (idx, adToken) => {
+      // 광고를 이미 봤는데 못 고른 상태(중간에 앱이 꺼졌을 때 등)면 광고 확인은 건너뛴다
+      if (!(stateRef.current?.picksLeft ?? 0) && !(await act('tm_ad_pick', { p_ad: adToken }))) return false;
+      return act('tm_pick_gender', { p_idx: idx });
+    },
     start: () => void act('tm_start'),
     vote: (yes) => act('tm_vote', { p_yes: yes }),
     forceReveal: () => void act('tm_force_reveal'),
