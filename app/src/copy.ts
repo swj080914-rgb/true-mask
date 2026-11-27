@@ -23,7 +23,7 @@ export const COPY = {
   sheetTitle: '남자 몇 명, 여자 몇 명?',
   sheetAd: '📺 광고 보고 이 질문만 보기',
   sheetOneGame: `이번 판 전부 보기 · ${PRICE.oneGame}`,
-  sheetLifetime: `평생권 (광고 제거) · ${PRICE.lifetime}`,
+  sheetLifetime: `👑 GOLD MASK · ${PRICE.lifetime}`,
   sheetFooter: '누가 열었는지는 아무도 몰라요.',
   sheetAppOnly: '결제는 트루 마스크 앱에서 할 수 있어요.',
   sheetClose: '닫기',
@@ -37,17 +37,17 @@ export const COPY = {
 
   // ── 열려 있을 때 모두에게 보이는 작은 표시 ────────────────────
   onByOneGame: '👑 이번 판 공개',
-  onByLifetime: '👑 평생권',
-  lifetimeOff: '👑 평생권 꺼짐',
-  lifetimeTurnOff: '내 평생권 끄기',
-  lifetimeTurnOn: '내 평생권 켜기',
+  onByLifetime: '👑 GOLD MASK',
+  lifetimeOff: '👑 GOLD MASK 꺼짐',
+  lifetimeTurnOff: '내 GOLD MASK 끄기',
+  lifetimeTurnOn: '내 GOLD MASK 켜기',
 
-  // ── 홈 화면: 평생권 ──────────────────────────────────────────
-  homeLifetimeTitle: '👑 평생권',
-  homeLifetimeBody: '남녀가 섞인 게임이면 매판 남녀 인원이 다 보여요.\n내가 들어간 방이면 친구들도 같이 봐요. 광고도 안 나와요.',
-  homeLifetimeBuy: `평생권 사기 · ${PRICE.lifetime}`,
-  homeLifetimeOwned: '👑 평생권 쓰는 중',
+  // ── 홈 화면: 평생권 (이름: GOLD MASK) ──────────────────────────────────────────
+  homeLifetimeTitle: '👑 GOLD MASK',
+  homeLifetimeBody: '내가 낀 방은 남녀가 다 보여요. 광고도 없어요.',
+  homeLifetimeBuy: `GOLD MASK 받기 · ${PRICE.lifetime}`,
+  homeLifetimeOwned: '👑 GOLD MASK 쓰는 중',
   homeRestore: '구매 복원',
   homeRestoreNone: '복원할 구매가 없어요.',
-  homeAppOnly: '평생권은 트루 마스크 앱에서 살 수 있어요.',
+  homeAppOnly: 'GOLD MASK는 트루 마스크 앱에서 받을 수 있어요.',
 };
