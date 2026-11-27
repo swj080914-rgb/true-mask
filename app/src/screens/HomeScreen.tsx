@@ -4,6 +4,8 @@ import type { Game } from '../useGame';
 import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Gender } from '../protocol';
 import { Button, C, Card, Character, DISPLAY_FONT, Label, ModeGuide, Segmented } from '../ui';
 import { Mascot } from '../Mascot';
+import { COPY } from '../copy';
+import { PURCHASES_AVAILABLE } from '../purchases';
 
 const QUESTION_OPTIONS = Array.from({ length: MAX_QUESTIONS - MIN_QUESTIONS + 1 }, (_, i) => {
   const n = MIN_QUESTIONS + i;
@@ -150,7 +152,36 @@ export function HomeScreen({ game }: { game: Game }) {
         loading={game.busy}
       />
       {!game.connected && <Text style={s.offline}>서버에 연결하는 중…</Text>}
+      <LifetimeCard game={game} />
     </View>
+  );
+}
+
+/** 홈 아래쪽 평생권 (광고 제거 포함) + 구매 복원 */
+function LifetimeCard({ game }: { game: Game }) {
+  const [note, setNote] = useState<string | null>(null);
+  if (game.lifetime) {
+    return <Text testID="lifetime-owned" style={s.owned}>{COPY.homeLifetimeOwned}</Text>;
+  }
+  return (
+    <Card style={s.lifeCard}>
+      <Text style={s.lifeTitle}>{COPY.homeLifetimeTitle}</Text>
+      <Text style={s.lifeBody}>{COPY.homeLifetimeBody}</Text>
+      {PURCHASES_AVAILABLE ? (
+        <>
+          <Button testID="home-buy-lifetime" kind="gold" title={COPY.homeLifetimeBuy} onPress={() => void game.buyLifetime()} style={{ marginTop: 14 }} />
+          <Button
+            testID="restore"
+            kind="ghost"
+            title={COPY.homeRestore}
+            onPress={() => void game.restoreLifetime().then((ok) => setNote(ok ? null : COPY.homeRestoreNone))}
+          />
+          {note && <Text style={s.lifeNote}>{note}</Text>}
+        </>
+      ) : (
+        <Text style={s.lifeNote}>{COPY.homeAppOnly}</Text>
+      )}
+    </Card>
   );
 }
 
@@ -179,4 +210,9 @@ const s = StyleSheet.create({
   codeInput: { fontFamily: DISPLAY_FONT, fontSize: 32, letterSpacing: 10, textAlign: 'center', fontWeight: '400' },
   hint: { color: C.sub, fontSize: 12, marginTop: 10 },
   offline: { color: C.sub, textAlign: 'center' },
+  lifeCard: { borderColor: C.goldDark, marginTop: 12 },
+  lifeTitle: { color: C.gold, fontSize: 18, fontWeight: '900' },
+  lifeBody: { color: C.sub, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  lifeNote: { color: C.sub, fontSize: 13, textAlign: 'center', marginTop: 6 },
+  owned: { color: C.gold, fontSize: 14, fontWeight: '800', textAlign: 'center', marginTop: 8 },
 });

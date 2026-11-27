@@ -46,11 +46,11 @@ export interface RoomState {
   lifetimeInRoom: boolean;
   /** 평생권 성별 공개를 켜 뒀는지 (평생권을 가진 사람이 끌 수 있음) */
   lifetimeOn: boolean;
-  /** 결제 칸: none 안 보임 / open 살 수 있음 / blocked 회색으로 막힘 / closed 시간 지남 */
-  purchase: 'none' | 'open' | 'blocked' | 'closed';
-  /** 최종 결과에서 방장이 더 고를 수 있는 질문 수 (무료 1개 + 광고를 보면 1개) */
+  /** 결제 칸 (게임이 끝난 뒤에만): none 안 보임 / open 살 수 있음 / blocked 익명 보호로 막힘 */
+  purchase: 'none' | 'open' | 'blocked';
+  /** 방장이 광고를 본 뒤 아직 고르지 않은 질문 수 (0 또는 1) */
   picksLeft: number;
-  /** 방장이 광고를 보고 하나 더 고를 수 있는지 (무료 1개를 쓴 뒤, 판마다 1번) */
+  /** 방장이 광고를 보고 질문 하나를 열 수 있는지 (판마다 1번) */
   adAvailable: boolean;
   phase: Phase;
   players: PublicPlayer[];

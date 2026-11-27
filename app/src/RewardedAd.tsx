@@ -3,6 +3,7 @@ import { Modal, StyleSheet, Text, View } from 'react-native';
 import { Button, C, DISPLAY_FONT } from './ui';
 import { Mascot } from './Mascot';
 import { mockAdToken } from './purchases';
+import { COPY } from './copy';
 
 /** 가짜 광고 길이(초). 실제 보상형 광고는 보통 15~30초 */
 const MOCK_AD_SECONDS = 5;
@@ -31,14 +32,14 @@ export function RewardedAd({ visible, onReward, onClose }: {
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={s.backdrop}>
         <View style={s.box}>
-          <Text style={s.tag}>광고 · 테스트</Text>
+          <Text style={s.tag}>{COPY.adTag}</Text>
           <Mascot width={110} />
-          <Text style={s.title}>여기에 광고가 나와요</Text>
-          <Text style={s.count}>{done ? '시청 완료!' : `${left}초`}</Text>
+          <Text style={s.title}>{COPY.adTitle}</Text>
+          <Text style={s.count}>{done ? COPY.adDone : `${left}초`}</Text>
           {done ? (
-            <Button testID="ad-reward" kind="gold" title="하나 더 공개하기" onPress={() => onReward(mockAdToken())} style={s.btn} />
+            <Button testID="ad-reward" kind="gold" title={COPY.adReward} onPress={() => onReward(mockAdToken())} style={s.btn} />
           ) : (
-            <Button testID="ad-close" kind="ghost" title="닫기" onPress={onClose} style={s.btn} />
+            <Button testID="ad-close" kind="ghost" title={COPY.adClose} onPress={onClose} style={s.btn} />
           )}
         </View>
       </View>

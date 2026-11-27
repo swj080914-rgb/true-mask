@@ -48,9 +48,9 @@ create index if not exists players_room_idx on truemask.players (room_id);
 alter table truemask.rooms add column if not exists lifetime_on boolean not null default true;
 -- 평생권(성별 공개 영구 해제)을 가진 참가자. 이 사람이 있는 혼성 게임은 자동으로 성별 공개가 켜진다.
 alter table truemask.players add column if not exists lifetime boolean not null default false;
--- 게임이 끝난 뒤 방장이 골라서 성별 인원을 공개한 질문 번호 (무료 1개 + 광고를 보면 1개 더)
+-- 게임이 끝난 뒤 방장이 광고를 보고 골라서 성별 인원을 공개한 질문 번호 (판마다 1개)
 alter table truemask.rooms add column if not exists picks int[] not null default '{}';
--- 이번 판에 광고를 보고 하나 더 고를 기회를 받았는지 (판마다 1번)
+-- 이번 판에 방장이 광고를 보고 질문 하나를 고를 기회를 받았는지 (판마다 1번)
 alter table truemask.rooms add column if not exists ad_pick boolean not null default false;
 
 -- 개별 투표. 결과 공개 순간 삭제되며, 어떤 API 로도 조회할 수 없다.
@@ -422,19 +422,17 @@ as $$
   )
 $$;
 
--- 결제 칸 상태: none(안 보임) / open(살 수 있음) / blocked(회색으로 막힘) / closed(시간 지남)
--- 게임 중간에는 팔지 않는다: 시작 직후 첫 질문 투표 중, 그리고 게임이 끝난 뒤(최종 결과)에만 열린다.
+-- 결제 칸 상태: none(안 보임) / open(살 수 있음) / blocked(회색으로 막힘)
+-- 게임 중에는 팔지 않는다: 게임이 끝난 뒤(최종 결과)에만 열린다. (평생권은 홈에서도 살 수 있다: 앱 쪽 결제)
 create or replace function truemask.purchase_status(r truemask.rooms) returns text
 language sql stable set search_path = truemask, pg_temp
 as $$
   select case
-    when r.phase = 'lobby' or r.mode <> 'mixed' or premium_on(r) then 'none'
+    when r.phase <> 'finished' or r.mode <> 'mixed' or premium_on(r) then 'none'
     -- 한 성별이 1명뿐이면 성별 인원이 그 사람 답을 드러내므로 팔지 않는다
     when (select count(*) filter (where gender = 'M') = 1 or count(*) filter (where gender = 'F') = 1
           from players p where p.room_id = r.id) then 'blocked'
-    when r.phase = 'voting' and r.question_index = 0 then 'open'
-    when r.phase = 'finished' then 'open'
-    else 'closed'
+    else 'open'
   end
 $$;
 
@@ -443,16 +441,16 @@ create or replace function truemask.picking(r truemask.rooms) returns boolean
 language sql stable set search_path = truemask, pg_temp
 as $$ select r.phase = 'finished' and r.mode = 'mixed' and not premium_on(r) $$;
 
--- 지금 더 고를 수 있는 질문 수: 무료 1개 + 광고를 봤으면 1개
+-- 지금 고를 수 있는 질문 수: 광고를 봤으면 1개 (무료는 없음)
 create or replace function truemask.picks_left(r truemask.rooms) returns int
 language sql stable set search_path = truemask, pg_temp
-as $$ select case when picking(r) then greatest(0, 1 + r.ad_pick::int - cardinality(r.picks)) else 0 end $$;
+as $$ select case when picking(r) then greatest(0, r.ad_pick::int - cardinality(r.picks)) else 0 end $$;
 
--- 광고를 보고 하나 더 고를 수 있는지: 무료 1개를 쓴 뒤, 판마다 1번, 아직 고를 질문이 남아 있을 때
+-- 방장이 광고를 보고 질문 하나를 고를 수 있는지: 판마다 1번, 고를 수 있는 질문이 있을 때
 create or replace function truemask.ad_available(r truemask.rooms) returns boolean
 language sql stable set search_path = truemask, pg_temp
 as $$
-  select picking(r) and not r.ad_pick and cardinality(r.picks) >= 1
+  select picking(r) and not r.ad_pick
     and exists (select 1 from results x where x.room_id = r.id and x.male_yes is not null and not x.idx = any(r.picks))
 $$;
 
@@ -640,7 +638,7 @@ begin
 end $$;
 
 -- 1회권: 이번 판의 성별 공개를 켠다. 참가자 누구나 살 수 있고, 켜지면 끌 수 없다.
--- 시작 직후 첫 질문 투표 중, 또는 게임이 끝난 뒤에만, 혼성이고 각 성별이 2명 이상일 때만 판다 (purchase_status).
+-- 게임이 끝난 뒤에만, 혼성이고 각 성별이 2명 이상일 때만 판다 (purchase_status).
 -- TODO(출시): 인앱결제 영수증은 Edge Function 에서 검증하고 서비스 키로 premium 을 켜도록 교체
 create or replace function public.tm_unlock_premium(p_player uuid, p_secret uuid, p_receipt text) returns jsonb
 language plpgsql security definer set search_path = truemask, pg_temp
@@ -654,7 +652,7 @@ begin
   st := purchase_status(r);
   if st = 'blocked' then perform fail('한 성별이 1명뿐이라 익명 보호를 위해 열 수 없어요.'); end if;
   if premium_on(r) then perform fail('이미 성별 공개가 켜져 있어요.'); end if;
-  if st <> 'open' then perform fail('성별 공개는 첫 질문 투표 중이나 게임이 끝난 뒤에 열 수 있어요.'); end if;
+  if st <> 'open' then perform fail('성별 공개는 게임이 끝난 뒤에 열 수 있어요.'); end if;
   if not ((select value from config where key = 'allow_mock_premium') = 'true'
           and coalesce(p_receipt, '') like 'mock-receipt:%') then
     perform fail('결제를 확인하지 못했어요.');
@@ -701,7 +699,7 @@ begin
   return state(p.room_id);
 end $$;
 
--- 최종 결과에서 방장이 질문 하나를 골라 성별 인원을 공개한다 (무료 1개, 광고를 보면 1개 더).
+-- 최종 결과에서 방장이 광고를 본 뒤 질문 하나를 골라 성별 인원을 공개한다 (판마다 1개).
 -- 각 성별이 2명 이상 투표한 질문만 고를 수 있다 (results.male_yes 가 있는 질문).
 create or replace function public.tm_pick_gender(p_player uuid, p_secret uuid, p_idx int) returns jsonb
 language plpgsql security definer set search_path = truemask, pg_temp
@@ -717,7 +715,7 @@ begin
   if p_idx = any(r.picks) then perform fail('이미 공개한 질문이에요.'); end if;
   if x.male_yes is null then perform fail('한 성별 인원이 너무 적어 익명 보호를 위해 공개할 수 없어요.'); end if;
   if picks_left(r) < 1 then
-    perform fail(case when ad_available(r) then '광고를 보면 하나 더 공개할 수 있어요.'
+    perform fail(case when ad_available(r) then '광고를 보면 하나 공개할 수 있어요.'
                       else '더 보려면 전체 공개를 열어 주세요.' end);
   end if;
   update rooms set picks = picks || p_idx where id = r.id;
@@ -725,7 +723,7 @@ begin
   return state(r.id);
 end $$;
 
--- 광고를 끝까지 본 방장에게 하나 더 고를 기회를 준다 (판마다 1번, 무료 1개를 쓴 뒤).
+-- 광고를 끝까지 본 방장에게 질문 하나를 고를 기회를 준다 (판마다 1번).
 -- TODO(출시): AdMob 보상형 광고의 서버 확인(SSV) 콜백을 Edge Function 으로 받아 확인하도록 교체
 create or replace function public.tm_ad_pick(p_player uuid, p_secret uuid, p_ad text) returns jsonb
 language plpgsql security definer set search_path = truemask, pg_temp
@@ -768,7 +766,7 @@ begin
   update rooms set
     mode = v_mode,
     premium = false, -- 1회권은 판마다 새로 산다
-    picks = '{}', ad_pick = false, -- 무료·광고 공개도 판마다 새로
+    picks = '{}', ad_pick = false, -- 광고 공개도 판마다 새로
     questions = array(
       select body from questions
       where enabled and mode in (v_mode, 'common')

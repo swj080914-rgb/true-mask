@@ -5,6 +5,7 @@ import type { QuestionResult, RoomState } from '../protocol';
 import { Button, C, Card, Character, DISPLAY_FONT, MODE_LABEL, ModeIcon } from '../ui';
 import { PremiumCard } from './PremiumCard';
 import { Reveal } from './Reveal';
+import { COPY } from '../copy';
 
 /** 투표 중 화면 + 결과 공개 화면 */
 export function GameScreen({ game, state, isHost }: { game: Game; state: RoomState; isHost: boolean }) {
@@ -67,6 +68,7 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
           <ResultStage
             key={state.questionIndex}
             result={state.lastResult}
+            locked={state.mode === 'mixed' && !state.premium}
             footer={
               isHost ? (
                 <Button testID="next" title={isLast ? '최종 결과 보기' : '다음 질문'} onPress={game.next} loading={game.busy} />
@@ -82,12 +84,22 @@ export function GameScreen({ game, state, isHost }: { game: Game; state: RoomSta
 }
 
 /** 뜸 들이기 → 숫자 올라가기 → 최종 결과 + 다음 버튼 */
-function ResultStage({ result, footer }: { result: QuestionResult; footer: React.ReactNode }) {
+function ResultStage({ result, footer, locked }: { result: QuestionResult; footer: React.ReactNode; locked?: boolean }) {
   const [revealed, setRevealed] = useState(false);
   if (!revealed) return <Reveal result={result} onDone={() => setRevealed(true)} />;
   return (
     <>
-      <ResultView result={result} />
+      <ResultView
+        result={result}
+        action={
+          locked ? (
+            <View style={s.lockBox}>
+              <Text style={s.lockLine}>{COPY.lockedLine}</Text>
+              <Text style={s.lockHint}>{COPY.lockedHint}</Text>
+            </View>
+          ) : undefined
+        }
+      />
       {footer}
     </>
   );
@@ -114,7 +126,7 @@ export function ResultView({ result, compact, action }: { result: QuestionResult
         </View>
       )}
       {result.genderHidden && (
-        <Text style={[s.sub, { marginTop: 10 }]}>👑 한 성별 인원이 너무 적어 익명 보호를 위해 성별을 숨겼어요</Text>
+        <Text style={[s.sub, { marginTop: 10 }]}>{COPY.genderHidden}</Text>
       )}
       {action}
     </Card>
@@ -157,5 +169,8 @@ const s = StyleSheet.create({
   barFill: { height: '100%', backgroundColor: C.yes, borderRadius: 7 },
   genderRow: { flexDirection: 'row', gap: 20, marginTop: 14, justifyContent: 'center' },
   gender: { fontSize: 16, fontWeight: '900' },
+  lockBox: { alignItems: 'center', marginTop: 14 },
+  lockLine: { color: C.sub, fontSize: 16, fontWeight: '900', opacity: 0.7 },
+  lockHint: { color: C.sub, fontSize: 13, marginTop: 4 },
   histQ: { color: C.text, fontSize: 15, fontWeight: '700', lineHeight: 21 },
 });
