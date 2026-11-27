@@ -420,6 +420,11 @@ as $$
   from players p where p.room_id = r.id
 $$;
 
+-- 방에 GOLD MASK(평생권)를 가진 사람이 있는지 (켜 뒀든 꺼 뒀든)
+create or replace function truemask.has_lifetime(r truemask.rooms) returns boolean
+language sql stable set search_path = truemask, pg_temp
+as $$ select exists (select 1 from players p where p.room_id = r.id and p.lifetime) $$;
+
 -- 지금 이 방 결과에 성별 인원을 보여주는지.
 -- rooms.premium = 이번 판 1회권 결제됨, 또는 평생권을 가진 사람이 있고 켜 둔 경우. 혼성 게임에서만.
 -- 평생권은 남자나 여자가 1명뿐인 방에서는 켜지지 않는다 (1회권은 그런 방에서 애초에 살 수 없다).
@@ -427,28 +432,29 @@ create or replace function truemask.premium_on(r truemask.rooms) returns boolean
 language sql stable set search_path = truemask, pg_temp
 as $$
   select r.phase <> 'lobby' and r.mode = 'mixed' and (
-    r.premium or (r.lifetime_on and not lonely_gender(r)
-                  and exists (select 1 from players p where p.room_id = r.id and p.lifetime))
+    r.premium or (r.lifetime_on and not lonely_gender(r) and has_lifetime(r))
   )
 $$;
 
 -- 결제 칸 상태: none(안 보임) / open(살 수 있음) / blocked(회색으로 막힘)
 -- 게임 중에는 팔지 않는다: 게임이 끝난 뒤(최종 결과)에만 열린다. (평생권은 홈에서도 살 수 있다: 앱 쪽 결제)
+-- 방에 GOLD MASK가 있으면 (꺼 뒀어도) 1회권은 팔지 않는다: 켜고 끄는 건 GOLD MASK 주인이 정한다.
 create or replace function truemask.purchase_status(r truemask.rooms) returns text
 language sql stable set search_path = truemask, pg_temp
 as $$
   select case
-    when r.phase <> 'finished' or r.mode <> 'mixed' or premium_on(r) then 'none'
+    when r.phase <> 'finished' or r.mode <> 'mixed' or premium_on(r) or has_lifetime(r) then 'none'
     -- 한 성별이 1명뿐이면 성별 인원이 그 사람 답을 드러내므로 팔지 않는다
     when lonely_gender(r) then 'blocked'
     else 'open'
   end
 $$;
 
--- 게임이 끝난 뒤 방장이 질문을 골라 성별을 공개하는 중인지 (혼성이고 전체 공개가 꺼져 있을 때)
+-- 게임이 끝난 뒤 방장이 광고를 보고 질문을 골라 성별을 공개할 수 있는 상황인지
+-- (혼성, 전체 공개가 꺼져 있고, 방에 GOLD MASK가 없을 때)
 create or replace function truemask.picking(r truemask.rooms) returns boolean
 language sql stable set search_path = truemask, pg_temp
-as $$ select r.phase = 'finished' and r.mode = 'mixed' and not premium_on(r) $$;
+as $$ select r.phase = 'finished' and r.mode = 'mixed' and not premium_on(r) and not has_lifetime(r) $$;
 
 -- 지금 고를 수 있는 질문 수: 광고를 봤으면 1개 (무료는 없음)
 create or replace function truemask.picks_left(r truemask.rooms) returns int

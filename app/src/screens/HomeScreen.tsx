@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { Game } from '../useGame';
 import { MAX_QUESTIONS, MIN_PLAYERS, MIN_QUESTIONS, type Gender } from '../protocol';
 import { Button, C, Card, Character, DISPLAY_FONT, Label, ModeGuide, Segmented } from '../ui';
 import { Mascot } from '../Mascot';
 import { COPY } from '../copy';
 import { PURCHASES_AVAILABLE } from '../purchases';
+import { GoldMask } from '../GoldMask';
 
 const QUESTION_OPTIONS = Array.from({ length: MAX_QUESTIONS - MIN_QUESTIONS + 1 }, (_, i) => {
   const n = MIN_QUESTIONS + i;
@@ -157,31 +158,49 @@ export function HomeScreen({ game }: { game: Game }) {
   );
 }
 
-/** 홈 아래쪽 평생권 (광고 제거 포함) + 구매 복원 */
+/**
+ * 홈 아래쪽 GOLD MASK 버튼: 없으면 회색, 사면 금색.
+ * 회색일 때 누르면 아래에서 구매창이 올라온다 (설명 한 줄 + 사기 + 구매 복원).
+ */
 function LifetimeCard({ game }: { game: Game }) {
+  const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  if (game.lifetime) {
-    return <Text testID="lifetime-owned" style={s.owned}>{COPY.homeLifetimeOwned}</Text>;
-  }
+  const close = () => {
+    setOpen(false);
+    setNote(null);
+  };
   return (
-    <Card style={s.lifeCard}>
-      <Text style={s.lifeTitle}>{COPY.homeLifetimeTitle}</Text>
-      <Text style={s.lifeBody}>{COPY.homeLifetimeBody}</Text>
-      {PURCHASES_AVAILABLE ? (
-        <>
-          <Button testID="home-buy-lifetime" kind="gold" title={COPY.homeLifetimeBuy} onPress={() => void game.buyLifetime()} style={{ marginTop: 14 }} />
-          <Button
-            testID="restore"
-            kind="ghost"
-            title={COPY.homeRestore}
-            onPress={() => void game.restoreLifetime().then((ok) => setNote(ok ? null : COPY.homeRestoreNone))}
-          />
-          {note && <Text style={s.lifeNote}>{note}</Text>}
-        </>
-      ) : (
-        <Text style={s.lifeNote}>{COPY.homeAppOnly}</Text>
-      )}
-    </Card>
+    <View style={{ marginTop: 16 }}>
+      <GoldMask testID="home-gold-mask" on={game.lifetime} onPress={game.lifetime ? undefined : () => setOpen(true)} />
+      <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
+        <Pressable style={s.backdrop} onPress={close}>
+          <Pressable style={s.sheet} onPress={() => {}}>
+            <GoldMask on size="sm" />
+            <Text style={s.lifeBody}>{COPY.homeLifetimeBody}</Text>
+            {PURCHASES_AVAILABLE ? (
+              <>
+                <Button
+                  testID="home-buy-lifetime"
+                  kind="gold"
+                  title={COPY.homeLifetimeBuy}
+                  onPress={() => void game.buyLifetime().then((ok) => ok && close())}
+                  style={{ marginTop: 16 }}
+                />
+                <Button
+                  testID="restore"
+                  kind="ghost"
+                  title={COPY.homeRestore}
+                  onPress={() => void game.restoreLifetime().then((ok) => (ok ? close() : setNote(COPY.homeRestoreNone)))}
+                />
+                {note && <Text style={s.lifeNote}>{note}</Text>}
+              </>
+            ) : (
+              <Text style={s.lifeNote}>{COPY.homeAppOnly}</Text>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
@@ -210,9 +229,11 @@ const s = StyleSheet.create({
   codeInput: { fontFamily: DISPLAY_FONT, fontSize: 32, letterSpacing: 10, textAlign: 'center', fontWeight: '400' },
   hint: { color: C.sub, fontSize: 12, marginTop: 10 },
   offline: { color: C.sub, textAlign: 'center' },
-  lifeCard: { borderColor: C.goldDark, marginTop: 12 },
-  lifeTitle: { color: C.gold, fontSize: 18, fontWeight: '900' },
-  lifeBody: { color: C.sub, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  lifeBody: { color: C.text, fontSize: 17, fontWeight: '800', textAlign: 'center', marginTop: 14 },
   lifeNote: { color: C.sub, fontSize: 13, textAlign: 'center', marginTop: 6 },
-  owned: { color: C.gold, fontSize: 14, fontWeight: '800', textAlign: 'center', marginTop: 8 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(5,3,12,0.7)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: C.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 2, borderColor: C.cardBorder,
+    padding: 20, paddingBottom: 32, width: '100%', maxWidth: 480, alignSelf: 'center',
+  },
 });

@@ -37,15 +37,11 @@ export const COPY = {
 
   // ── 열려 있을 때 모두에게 보이는 작은 표시 ────────────────────
   onByOneGame: '👑 이번 판 공개',
-  // GOLD MASK는 글자 대신 가면 그림으로 보여줘요 (켜짐: 금색, 꺼짐: 회색). 아래 두 줄은 화면 읽기 기능용 이름
-  onByLifetime: 'GOLD MASK 켜짐',
-  lifetimeOff: 'GOLD MASK 꺼짐',
+  // GOLD MASK는 글자 대신 GOLD MASK 배지로 보여줘요 (켜짐: 금색, 꺼짐: 회색)
 
   // ── 홈 화면: 평생권 (이름: GOLD MASK) ──────────────────────────────────────────
-  homeLifetimeTitle: '👑 GOLD MASK',
   homeLifetimeBody: '성별 공개 무제한 + 광고 제거',
   homeLifetimeBuy: `GOLD MASK 받기 · ${PRICE.lifetime}`,
-  homeLifetimeOwned: '👑 GOLD MASK 쓰는 중',
   homeRestore: '구매 복원',
   homeRestoreNone: '복원할 구매가 없어요.',
   homeAppOnly: 'GOLD MASK는 트루 마스크 앱에서 받을 수 있어요.',

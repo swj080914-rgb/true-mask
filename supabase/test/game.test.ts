@@ -257,19 +257,18 @@ describe('게임 진행', () => {
     s = await rpc('tm_start', auth(players[0]));
     expect(s.premium).toBe(false);
     s = await playToEnd(players, [true, true, false, true]);
-    expect(s.purchase).toBe('open'); // 꺼 두면 다른 사람이 1회권을 살 수는 있다
+    expect(s.purchase).toBe('none'); // GOLD MASK가 있는 방은 꺼 뒀어도 1회권·광고가 없다
+    expect(s.adAvailable).toBe(false);
     s = await rpc('tm_set_lifetime_on', { ...auth(players[2]), p_on: true }); // 잘못 눌렀으면 다시 켜기
     expect(s.premium).toBe(true);
   });
 
-  it('1회권으로 켜진 판은 평생권을 꺼도 계속 켜져 있다', async () => {
+  it('1회권으로 켜진 판은 나중에 GOLD MASK를 사서 꺼도 계속 켜져 있다', async () => {
     const { players } = await room(['M', 'F', 'M', 'F']);
-    await rpc('tm_claim_lifetime', { ...auth(players[2]), p_receipt: 'mock-lifetime' });
-    await rpc('tm_set_lifetime_on', { ...auth(players[2]), p_on: false });
     await rpc('tm_start', auth(players[0]));
     await playToEnd(players, [true, true, false, true]);
     await rpc('tm_unlock_premium', { ...auth(players[1]), p_receipt: receipt() });
-    await rpc('tm_set_lifetime_on', { ...auth(players[2]), p_on: true });
+    await rpc('tm_claim_lifetime', { ...auth(players[2]), p_receipt: 'mock-lifetime' });
     const s = await rpc('tm_set_lifetime_on', { ...auth(players[2]), p_on: false });
     expect(s.premium).toBe(true);
     expect(s.premiumBy).toBe('oneGame');
