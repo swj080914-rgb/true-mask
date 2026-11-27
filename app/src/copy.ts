@@ -10,16 +10,14 @@ export const PRICE = {
 };
 
 export const COPY = {
-  // ── 게임 중: 결과 숫자 아래 잠금 표시 ─────────────────────────
-  lockedLine: '🔒 남자 ?명 · 여자 ?명',
-  lockedHint: '게임이 끝나면 열어볼 수 있어요',
+  // ── 결과 숫자 아래 가려진 남녀 인원 (게임 중, 최종 결과 둘 다) ──
+  lockedMale: '남자 ?',
+  lockedFemale: '여자 ?',
 
   // ── 최종 결과 화면 ────────────────────────────────────────────
-  finishedGuide: '🔒 질문을 누르면 남녀 몇 명인지 볼 수 있어요',
+  finishedGuide: '궁금한 질문을 눌러보세요',
   finishedAllButton: '👑 이번 판 전부 보기',
-  lockedRowButton: '🔒 남녀 몇 명인지 보기',
-  blocked: '남자나 여자가 한 명뿐이라, 누군지 티 날 수 있어서 이번 판은 못 열어요.',
-  genderHidden: '이 질문은 남자나 여자가 한 명뿐이라 숨겼어요',
+  blocked: '남자나 여자가 한 명뿐이라 이번 판은 못 열어요',
 
   // ── 질문을 눌렀을 때 아래에서 올라오는 선택창 ─────────────────
   sheetTitle: '남자 몇 명, 여자 몇 명?',
@@ -37,11 +35,10 @@ export const COPY = {
   adReward: '이 질문 열기',
   adClose: '닫기',
 
-  // ── 누군가 열었을 때 모두에게 뜨는 안내 ───────────────────────
-  onByOneGame: '👑 누군가 이번 판을 열었어요. 남녀 인원이 다 보여요.',
-  onByLifetime: '👑 평생권 있는 사람이 있어서 남녀 인원이 다 보여요.',
-  lifetimeInLobby: '👑 평생권 있는 사람이 있어요. 남녀가 섞여 있으면 결과에 남녀 인원도 나와요.',
-  lifetimeOff: '평생권 있는 사람이 성별 공개를 꺼 뒀어요.',
+  // ── 열려 있을 때 모두에게 보이는 작은 표시 ────────────────────
+  onByOneGame: '👑 이번 판 공개',
+  onByLifetime: '👑 평생권',
+  lifetimeOff: '👑 평생권 꺼짐',
   lifetimeTurnOff: '내 평생권 끄기',
   lifetimeTurnOn: '내 평생권 켜기',
 

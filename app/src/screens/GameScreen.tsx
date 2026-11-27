@@ -93,15 +93,22 @@ function ResultStage({ result, footer, locked }: { result: QuestionResult; foote
         result={result}
         action={
           locked ? (
-            <View style={s.lockBox}>
-              <Text style={s.lockLine}>{COPY.lockedLine}</Text>
-              <Text style={s.lockHint}>{COPY.lockedHint}</Text>
-            </View>
+            <LockedGender />
           ) : undefined
         }
       />
       {footer}
     </>
+  );
+}
+
+/** 가려진 남녀 인원: 남자 ? · 여자 ? */
+export function LockedGender() {
+  return (
+    <View style={s.genderRow}>
+      <Text style={[s.gender, s.lockedText, { color: C.male }]}>{COPY.lockedMale}</Text>
+      <Text style={[s.gender, s.lockedText, { color: C.female }]}>{COPY.lockedFemale}</Text>
+    </View>
   );
 }
 
@@ -124,9 +131,6 @@ export function ResultView({ result, compact, action }: { result: QuestionResult
           <Text style={[s.gender, { color: C.male }]}>남자 {result.genderBreakdown.M}명</Text>
           <Text style={[s.gender, { color: C.female }]}>여자 {result.genderBreakdown.F}명</Text>
         </View>
-      )}
-      {result.genderHidden && (
-        <Text style={[s.sub, { marginTop: 10 }]}>{COPY.genderHidden}</Text>
       )}
       {action}
     </Card>
@@ -169,8 +173,6 @@ const s = StyleSheet.create({
   barFill: { height: '100%', backgroundColor: C.yes, borderRadius: 7 },
   genderRow: { flexDirection: 'row', gap: 20, marginTop: 14, justifyContent: 'center' },
   gender: { fontSize: 16, fontWeight: '900' },
-  lockBox: { alignItems: 'center', marginTop: 14 },
-  lockLine: { color: C.sub, fontSize: 16, fontWeight: '900', opacity: 0.7 },
-  lockHint: { color: C.sub, fontSize: 13, marginTop: 4 },
+  lockedText: { opacity: 0.55 },
   histQ: { color: C.text, fontSize: 15, fontWeight: '700', lineHeight: 21 },
 });

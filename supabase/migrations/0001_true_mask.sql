@@ -412,13 +412,23 @@ begin
   return r;
 end $$;
 
+-- 방에 남자나 여자가 딱 1명뿐인지. 이러면 성별 인원이 그 사람 답을 드러내므로 성별 공개를 하지 않는다.
+create or replace function truemask.lonely_gender(r truemask.rooms) returns boolean
+language sql stable set search_path = truemask, pg_temp
+as $$
+  select count(*) filter (where gender = 'M') = 1 or count(*) filter (where gender = 'F') = 1
+  from players p where p.room_id = r.id
+$$;
+
 -- 지금 이 방 결과에 성별 인원을 보여주는지.
 -- rooms.premium = 이번 판 1회권 결제됨, 또는 평생권을 가진 사람이 있고 켜 둔 경우. 혼성 게임에서만.
+-- 평생권은 남자나 여자가 1명뿐인 방에서는 켜지지 않는다 (1회권은 그런 방에서 애초에 살 수 없다).
 create or replace function truemask.premium_on(r truemask.rooms) returns boolean
 language sql stable set search_path = truemask, pg_temp
 as $$
   select r.phase <> 'lobby' and r.mode = 'mixed' and (
-    r.premium or (r.lifetime_on and exists (select 1 from players p where p.room_id = r.id and p.lifetime))
+    r.premium or (r.lifetime_on and not lonely_gender(r)
+                  and exists (select 1 from players p where p.room_id = r.id and p.lifetime))
   )
 $$;
 
@@ -430,8 +440,7 @@ as $$
   select case
     when r.phase <> 'finished' or r.mode <> 'mixed' or premium_on(r) then 'none'
     -- 한 성별이 1명뿐이면 성별 인원이 그 사람 답을 드러내므로 팔지 않는다
-    when (select count(*) filter (where gender = 'M') = 1 or count(*) filter (where gender = 'F') = 1
-          from players p where p.room_id = r.id) then 'blocked'
+    when lonely_gender(r) then 'blocked'
     else 'open'
   end
 $$;

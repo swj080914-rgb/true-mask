@@ -275,14 +275,22 @@ describe('게임 진행', () => {
     expect(s.premiumBy).toBe('oneGame');
   });
 
-  it('한 성별이 1명뿐이면 평생권이 있어도 성별 내역을 숨긴다', async () => {
+  it('한 성별이 1명뿐인 방은 평생권이 있어도 성별 공개가 켜지지 않는다', async () => {
     const { players } = await room(['M', 'M', 'M', 'F']);
     await rpc('tm_claim_lifetime', { ...auth(players[0]), p_receipt: 'mock-lifetime' });
-    await rpc('tm_start', auth(players[0]));
+    const st = await rpc('tm_start', auth(players[0]));
+    expect(st.premium).toBe(false);
     const s = await voteAll(players, [true, true, true, true]);
     expect(s.lastResult.genderBreakdown).toBeUndefined();
-    expect(s.lastResult.genderHidden).toBe(true);
     expect(s.lastResult.yes).toBe(4);
+  });
+
+  it('"예"가 1명이어도 성별 인원은 공개된다 (투표한 사람이 성별마다 2명 이상이면 됨)', async () => {
+    const { players } = await room(['M', 'F', 'M', 'F']);
+    await rpc('tm_claim_lifetime', { ...auth(players[0]), p_receipt: 'mock-lifetime' });
+    await rpc('tm_start', auth(players[0]));
+    const s = await voteAll(players, [false, true, false, false]);
+    expect(s.lastResult.genderBreakdown).toEqual({ M: 0, F: 1 });
   });
 
   it('광고: 무료 공개는 없고, 방장이 광고를 보면 질문 1개를 공개한다 (판마다 1번)', async () => {

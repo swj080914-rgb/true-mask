@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Game } from '../useGame';
 import type { RoomState } from '../protocol';
 import { Button, C, Card, DISPLAY_FONT } from '../ui';
-import { ResultView } from './GameScreen';
+import { LockedGender, ResultView } from './GameScreen';
 import { PremiumCard } from './PremiumCard';
 import { PurchaseSheet } from './PurchaseSheet';
 import { Mascot } from '../Mascot';
@@ -48,14 +48,14 @@ export function FinishedScreen({ game, state, isHost }: { game: Game; state: Roo
           compact
           action={
             locked && r.canPick ? (
-              <Button
+              <Pressable
                 testID={`lock-${i}`}
-                kind="secondary"
-                title={COPY.lockedRowButton}
+                accessibilityRole="button"
                 onPress={() => (pickNow ? void game.adReveal(i, '') : setSheet(i))}
-                style={s.rowBtn}
-                textStyle={s.rowBtnText}
-              />
+                style={({ pressed }) => [s.lockRow, pressed && { opacity: 0.6 }]}
+              >
+                <LockedGender />
+              </Pressable>
             ) : undefined
           }
         />
@@ -111,4 +111,8 @@ const s = StyleSheet.create({
   guide: { color: C.gold, fontSize: 15, fontWeight: '900', textAlign: 'center', lineHeight: 21 },
   rowBtn: { marginTop: 12, minHeight: 44 },
   rowBtnText: { fontSize: 15 },
+  lockRow: {
+    marginTop: 12, borderRadius: 14, borderWidth: 2, borderColor: C.cardBorder, borderStyle: 'dashed',
+    paddingBottom: 12, backgroundColor: C.inset,
+  },
 });
